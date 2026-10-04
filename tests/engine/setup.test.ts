@@ -9,7 +9,9 @@ import {
   validatePlayers,
   validateSetup,
   DEFAULT_GAME_CONFIG,
+  enabledTopicIds,
   sanitizeConfig,
+  topicsPatch,
 } from '../../src/game';
 import { normalizeKey } from '../../src/game/engine/text';
 import { BUILT_IN_CATEGORY_IDS, presetExclusions } from '../../src/data/words';
@@ -374,6 +376,35 @@ describe('category toggles for Random & Mixed', () => {
     expect(res.ok).toBe(false);
     // Picking a category directly still works even if it is switched off for Random.
     expect(createRoundSetup(makePlayers(4), { ...cfg, categoryId: 'food' }, src, seedFromNumber(1)).ok).toBe(true);
+  });
+
+  it('multi-select: only the ticked topics are ever used, custom ones included', () => {
+    const picked = ['food', 'tamil_movies', 'custom:friends'];
+    const cfg = config(topicsPatch(picked, src.categories, 'random'));
+    expect(enabledTopicIds(cfg, src.categories).sort()).toEqual([...picked].sort());
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 300; seed++) {
+      const res = createRoundSetup(makePlayers(4), cfg, src, seedFromNumber(seed));
+      if (!res.ok) throw new Error(res.errors.join());
+      seen.add(res.setup.word.categoryId);
+    }
+    expect(seen).toEqual(new Set(picked));
+  });
+
+  it('multi-select: a custom topic can be ticked off on its own', () => {
+    const two = builtInSource([customCategory('custom:a', ['Goa']), customCategory('custom:b', ['Ooty'])]);
+    const cfg = config(topicsPatch(['custom:a'], two.categories, 'mixed'));
+    expect(cfg.categoryId).toBe('mixed');
+    expect(enabledTopicIds(cfg, two.categories)).toEqual(['custom:a']);
+    for (let seed = 0; seed < 50; seed++) {
+      const res = createRoundSetup(makePlayers(4), cfg, two, seedFromNumber(seed));
+      expect(res.ok && res.setup.word.word).toBe('Goa');
+    }
+  });
+
+  it('multi-select: an older single-category choice shows as that one topic ticked', () => {
+    expect(enabledTopicIds(config({ categoryId: 'food' }), src.categories)).toEqual(['food']);
+    expect(enabledTopicIds(config({ categoryId: 'custom:gone' }), src.categories)).toEqual([]);
   });
 
   it('presets: Everyday keeps everyday + India topics and drops cinema/pop', () => {

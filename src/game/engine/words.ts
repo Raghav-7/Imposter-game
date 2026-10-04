@@ -15,10 +15,37 @@ export interface CategoryPool {
 /** Which categories Random/Mixed may draw from. */
 export type PoolOptions = Pick<GameConfig, 'excludedCategories' | 'customInRandom'>;
 
-/** True if this category takes part in Random/Mixed (built-ins default on, custom default off). */
+/**
+ * True if this category takes part in Random/Mixed. Built-ins default on; custom
+ * ones follow the "custom in random" switch, and any topic can be ticked off.
+ */
 export function inRandomPool(category: Pick<CategorySource, 'id' | 'custom'>, options: Partial<PoolOptions>): boolean {
-  if (category.custom) return options.customInRandom ?? false;
+  if (category.custom && !(options.customInRandom ?? false)) return false;
   return !(options.excludedCategories ?? []).includes(category.id);
+}
+
+type TopicConfig = Pick<GameConfig, 'categoryId'> & Partial<PoolOptions>;
+
+/** The topics ticked in the picker. A single (older) category choice counts as just that one. */
+export function enabledTopicIds(config: TopicConfig, all: readonly Pick<CategorySource, 'id' | 'custom'>[]): string[] {
+  if (config.categoryId !== RANDOM_CATEGORY && config.categoryId !== MIXED_CATEGORY) {
+    return all.some((c) => c.id === config.categoryId) ? [config.categoryId] : [];
+  }
+  return all.filter((c) => inRandomPool(c, config)).map((c) => c.id);
+}
+
+/** Config change that ticks exactly `ids`; each round draws from those topics. */
+export function topicsPatch(
+  ids: Iterable<string>,
+  all: readonly Pick<CategorySource, 'id'>[],
+  style: 'random' | 'mixed',
+): Pick<GameConfig, 'categoryId' | 'excludedCategories' | 'customInRandom'> {
+  const on = new Set(ids);
+  return {
+    categoryId: style === 'mixed' ? MIXED_CATEGORY : RANDOM_CATEGORY,
+    excludedCategories: all.filter((c) => !on.has(c.id)).map((c) => c.id),
+    customInRandom: true,
+  };
 }
 
 /** Resolve the configured category id into the set of usable words, or null if it doesn't exist. */
