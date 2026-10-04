@@ -9,6 +9,7 @@ import { ImportSheet } from '../components/ImportSheet';
 import { confirm, toast } from '../components/Overlay';
 import { Screen } from '../components/Screen';
 import { LANGUAGE_NAMES, useT } from '../localization';
+import { updateGameConfig, useGameConfig } from '../state/appData';
 import { buildBackup } from '../state/backup';
 import { updateSettings, useSettings } from '../state/settings';
 import { statsStore } from '../state/stats';
@@ -18,6 +19,7 @@ import { safeBack } from '../utils/navigation';
 export default function SettingsScreen() {
   const t = useT();
   const s = useSettings();
+  const game = useGameConfig();
   const [importing, setImporting] = useState(false);
 
   const exportData = async () => {
@@ -47,6 +49,22 @@ export default function SettingsScreen() {
 
   return (
     <Screen title={t('settings.title')} onBack={() => safeBack()}>
+      <SectionTitle>{t('settings.playStyle')}</SectionTitle>
+      <View style={styles.group}>
+        <Segmented
+          label={t('settings.playStyle')}
+          value={game.playStyle}
+          onChange={(v) => updateGameConfig({ playStyle: v })}
+          options={[
+            { value: 'simple', label: t('settings.playStyle.simple') },
+            { value: 'full', label: t('settings.playStyle.full') },
+          ]}
+        />
+        <AppText variant="caption" tone="muted" style={styles.label} testID="play-style-hint">
+          {game.playStyle === 'simple' ? t('settings.playStyle.simpleHint') : t('settings.playStyle.fullHint')}
+        </AppText>
+      </View>
+
       <SectionTitle>{t('settings.appearance')}</SectionTitle>
       <View style={styles.group}>
         <AppText variant="caption" tone="muted">

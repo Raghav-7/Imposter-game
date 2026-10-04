@@ -10,6 +10,7 @@ import { SPACE } from '../theme';
 import { safeBack } from '../utils/navigation';
 
 const SECTIONS = [
+  'styles',
   'basics',
   'example',
   'classic',

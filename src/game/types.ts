@@ -29,6 +29,10 @@ export type ModifierId =
   | 'imposterCategory'
   | 'twoWords';
 
+export type PlayStyle = 'simple' | 'full';
+
+export type Direction = 'clockwise' | 'anticlockwise';
+
 export type ClueTimer = 0 | 15 | 30 | 45 | 60;
 export type DiscussionTimer = 0 | 30 | 60 | 90 | 120;
 
@@ -66,6 +70,11 @@ export interface GameConfig {
   /** Chaos mode: how many random modifiers per round (1 or 2). */
   chaosModifierCount: 1 | 2;
   scoring: ScoringConfig;
+  /**
+   * 'simple': the phone only deals the words, picks who starts and shows the answer;
+   * clues, discussion and voting happen out loud. 'full': everything on the phone.
+   */
+  playStyle: PlayStyle;
 }
 
 /** A playable category (built-in or custom) handed to the engine. */
@@ -102,6 +111,8 @@ export interface RoundSetup {
   clueOrder: PlayerId[];
   /** Shuffled options for the multiple-choice final guess (includes the secret word). */
   guessChoices: string[];
+  /** Which way the talking goes around the circle (players are listed in clockwise seating order). */
+  direction: Direction;
 }
 
 export interface VotingState {
@@ -196,7 +207,9 @@ export type Phase =
   | 'IMPOSTER_GUESS'
   | 'ROUND_RESULT'
   | 'SCOREBOARD'
-  | 'GAME_COMPLETE';
+  | 'GAME_COMPLETE'
+  /** Words-only style: the answer screen after the group has talked and voted out loud. */
+  | 'ANSWER';
 
 export interface RoundSummary {
   number: number;

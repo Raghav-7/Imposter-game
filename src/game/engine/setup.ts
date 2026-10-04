@@ -1,6 +1,16 @@
 import { MODES, MODIFIERS, MODIFIER_IDS } from '../modes';
 import { isCivilianTeam, isHunted } from '../roles';
-import type { GameConfig, Intel, ModifierId, Player, PlayerId, RoleId, RoundSetup, WordSource } from '../types';
+import type {
+  Direction,
+  GameConfig,
+  Intel,
+  ModifierId,
+  Player,
+  PlayerId,
+  RoleId,
+  RoundSetup,
+  WordSource,
+} from '../types';
 import { createRng, pick, type Rng, type Seed, shuffle } from './rng';
 import { type SetupIssue, validateSetup } from './validation';
 import { type PickWordError, pickWord, resolveCategoryPool } from './words';
@@ -40,7 +50,10 @@ export function createRoundSetup(
   const intel = buildIntel(rng, roles);
 
   const ids = players.map((p) => p.id);
-  const clueOrder = modifiers.includes('randomOrder') ? shuffle(rng, ids) : rotate(ids, rng.int(ids.length));
+  const direction: Direction = rng.int(2) === 0 ? 'clockwise' : 'anticlockwise';
+  const clueOrder = modifiers.includes('randomOrder')
+    ? shuffle(rng, ids)
+    : orderFrom(ids, rng.int(ids.length), direction);
 
   return {
     ok: true,
@@ -51,13 +64,16 @@ export function createRoundSetup(
       intel,
       modifiers,
       clueOrder,
+      direction,
       guessChoices: picked.value.guessChoices,
     },
   };
 }
 
-function rotate<T>(items: readonly T[], start: number): T[] {
-  return [...items.slice(start), ...items.slice(0, start)];
+/** Speaking order starting at `start`, going round the (clockwise) seating order either way. */
+export function orderFrom<T>(seating: readonly T[], start: number, direction: Direction): T[] {
+  const rotated = [...seating.slice(start), ...seating.slice(0, start)];
+  return direction === 'clockwise' ? rotated : [rotated[0]!, ...rotated.slice(1).reverse()];
 }
 
 /** Can the "two words" chaos modifier fit? It adds one extra hunted undercover. */

@@ -139,6 +139,8 @@ export function validateGameState(raw: unknown): GameState | null {
       if (typeof v.voterIndex !== 'number' || v.voterIndex < 0 || v.voterIndex > v.voters.length) return null;
     }
     if (phase === 'VOTING' && round.voting === null) return null;
+    // Saves from before the direction feature default to clockwise.
+    if (setup.direction !== 'clockwise' && setup.direction !== 'anticlockwise') setup.direction = 'clockwise';
     if (phase === 'VOTE_RESULT' && !isRecord(round.lastVote)) return null;
     if ((phase === 'ROUND_RESULT' || phase === 'SCOREBOARD') && !isRecord(round.result)) return null;
   } else if (phase !== 'IDLE' && phase !== 'GAME_COMPLETE') {

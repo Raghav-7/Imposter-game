@@ -1,6 +1,8 @@
 import {
   canTransition,
   createInitialState,
+  createRoundSetup,
+  DEFAULT_GAME_CONFIG,
   gameReducer,
   getNextStep,
   seedFromNumber,
@@ -309,5 +311,71 @@ describe('end-to-end rounds (engine)', () => {
     const id = s.round!.alive[0]!;
     s = apply(s, { type: 'RECORD_PEEK', playerId: id });
     expect(s.round!.peeks).toEqual([id]);
+  });
+});
+
+describe('words-only play style (default)', () => {
+  const simple = (overrides = {}) => config({ playStyle: 'simple', ...overrides });
+
+  const revealAll = (s: GameState) => {
+    let st = apply(s, { type: 'BEGIN_REVEAL' });
+    for (let i = 0; i < st.players.length; i++) {
+      st = apply(st, { type: 'SHOW_SECRET', index: i });
+      st = apply(st, { type: 'SECRET_SEEN', index: i });
+    }
+    return st;
+  };
+
+  it('is the default style', () => {
+    expect(DEFAULT_GAME_CONFIG.playStyle).toBe('simple');
+  });
+
+  it('after the reveal, goes straight to the answer — no on-phone clues or voting', () => {
+    let s = revealAll(startGame(makePlayers(5), simple()));
+    expect(s.phase).toBe('REVEAL_COMPLETE');
+    expect(gameReducer(s, { type: 'START_CLUES' })).toBe(s); // clue phase is not used
+    s = apply(s, { type: 'REVEAL_ANSWER' });
+    expect(s.phase).toBe('ANSWER');
+    expect(gameReducer(s, { type: 'REVEAL_ANSWER' })).toBe(s); // double tap ignored
+  });
+
+  it('full style cannot jump to the answer screen', () => {
+    const s = revealAll(startGame(makePlayers(4), config({ playStyle: 'full' })));
+    expect(gameReducer(s, { type: 'REVEAL_ANSWER' })).toBe(s);
+  });
+
+  it('next round from the answer screen deals a fresh round; no scores are kept', () => {
+    let s = apply(revealAll(startGame(makePlayers(4), simple())), { type: 'REVEAL_ANSWER' });
+    const res = createRoundSetup(s.players, s.config, builtInSource(), seedFromNumber(77));
+    if (!res.ok) throw new Error(res.errors.join());
+    s = apply(s, { type: 'NEXT_ROUND', setup: res.setup, roundId: 'r2' });
+    expect(s.phase).toBe('WORD_GENERATED');
+    expect(s.round!.number).toBe(2);
+    expect(Object.values(s.scores).every((v) => v === 0)).toBe(true);
+  });
+
+  it('starting player and direction are random, and the speaking order follows the direction', () => {
+    const players = makePlayers(6);
+    const ids = players.map((p) => p.id);
+    const starters = new Set<string>();
+    const dirs = new Set<string>();
+    for (let seed = 1; seed < 200; seed++) {
+      const res = createRoundSetup(players, simple({ categoryId: 'food' }), builtInSource(), seedFromNumber(seed));
+      if (!res.ok) throw new Error(res.errors.join());
+      const { clueOrder, direction } = res.setup;
+      starters.add(clueOrder[0]!);
+      dirs.add(direction);
+      const start = ids.indexOf(clueOrder[0]!);
+      const step = direction === 'clockwise' ? 1 : -1;
+      clueOrder.forEach((id, i) => expect(id).toBe(ids[(((start + step * i) % 6) + 6) % 6]));
+    }
+    expect(starters.size).toBe(6);
+    expect(dirs).toEqual(new Set(['clockwise', 'anticlockwise']));
+  });
+
+  it('players can re-check their word while the phone is down', () => {
+    const s = revealAll(startGame(makePlayers(4), simple()));
+    const id = s.players[0]!.id;
+    expect(apply(s, { type: 'RECORD_PEEK', playerId: id }).round!.peeks).toEqual([id]);
   });
 });

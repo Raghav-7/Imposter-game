@@ -13,7 +13,7 @@ export const TRANSITIONS: Readonly<Record<Phase, readonly Phase[]>> = {
   ROLE_REVEAL_INTRO: ['ROLE_REVEAL', 'IDLE'],
   // ROLE_REVEAL → ROLE_REVEAL_INTRO covers both "next player" and "hide again" (background/back).
   ROLE_REVEAL: ['ROLE_REVEAL_INTRO', 'REVEAL_COMPLETE', 'IDLE'],
-  REVEAL_COMPLETE: ['CLUE_PHASE', 'IDLE'],
+  REVEAL_COMPLETE: ['CLUE_PHASE', 'ANSWER', 'IDLE'],
   CLUE_PHASE: ['CLUE_PHASE', 'DISCUSSION', 'IDLE'],
   DISCUSSION: ['VOTING', 'IDLE'],
   VOTING: ['VOTING', 'VOTE_RESULT', 'IDLE'],
@@ -23,6 +23,7 @@ export const TRANSITIONS: Readonly<Record<Phase, readonly Phase[]>> = {
   ROUND_RESULT: ['SCOREBOARD', 'IDLE'],
   SCOREBOARD: ['WORD_GENERATED', 'GAME_COMPLETE', 'IDLE'],
   GAME_COMPLETE: ['IDLE', 'WORD_GENERATED'],
+  ANSWER: ['WORD_GENERATED', 'IDLE'],
 };
 
 export function canTransition(from: Phase, to: Phase): boolean {
@@ -44,6 +45,7 @@ export const IN_GAME_PHASES: readonly Phase[] = [
   'ROUND_RESULT',
   'SCOREBOARD',
   'GAME_COMPLETE',
+  'ANSWER',
 ];
 
 export function isInGame(phase: Phase): boolean {

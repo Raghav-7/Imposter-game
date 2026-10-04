@@ -138,6 +138,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await tap('reveal-hide', 700);
   }
   console.log('roles', JSON.stringify(roles));
+  if (await exists('answer-hold')) {
+    // Words-only style (default): who starts → hold for the answer → next round.
+    await shot('simple-start');
+    await overflow('simple-start');
+    const box = await (await page.$('[data-testid="answer-hold"]')).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await sleep(1600);
+    await page.mouse.up();
+    await sleep(1200);
+    await shot('answer');
+    await overflow('answer');
+    await tap('answer-next', 2500);
+    await shot('next-round');
+    console.log('ERRORS:\n' + (errors.length ? errors.join('\n') : 'none'));
+    await browser.close();
+    return;
+  }
   await shot('reveal-complete');
   await tap('clues-start', 700);
   await shot('clue');

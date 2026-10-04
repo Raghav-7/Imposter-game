@@ -48,7 +48,8 @@ export function makePlayers(n: number, prefix = 'P'): Player[] {
 }
 
 export function config(overrides: Partial<GameConfig> = {}): GameConfig {
-  return { ...DEFAULT_GAME_CONFIG, ...overrides };
+  // Engine tests exercise the full on-phone flow unless a test asks for 'simple'.
+  return { ...DEFAULT_GAME_CONFIG, playStyle: 'full', ...overrides };
 }
 
 /** Applies an action and asserts it was accepted (state changed). */

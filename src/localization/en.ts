@@ -80,7 +80,7 @@ export const en = {
   'players.remove': 'Remove {name}',
   'players.rename': 'Name of player {index}',
   'players.defaultName': 'Player {index}',
-  'players.empty': 'Add at least 3 players. Seat order = the order you pass the phone.',
+  'players.empty': 'Add at least 3 players in clockwise seating order — the order you pass the phone.',
   'players.next': 'Next: Game settings',
   'players.error.tooFew': 'Add at least {min} players',
   'players.error.tooMany': 'Max {max} players',
@@ -91,6 +91,7 @@ export const en = {
   'players.full': 'That’s the max — {max} players!',
 
   'config.title': 'Game settings',
+  'config.playStyleNote': 'Playing: {style} · change in Settings',
   'config.summary': '{players} · {imposters}',
   'config.mode': 'Game mode',
   'config.imposters': 'Imposters',
@@ -277,6 +278,24 @@ export const en = {
   'complete.start': 'Start clues',
   'complete.twists': 'This round’s twists',
 
+  'simple.title': 'Everyone has their word!',
+  'simple.starts': '{name} starts',
+  'simple.clockwise': 'then go clockwise',
+  'simple.anticlockwise': 'then go anticlockwise',
+  'simple.orderLabel': 'Speaking order',
+  'simple.phoneDown': 'Phone down 📵 Give clues, discuss and vote out loud.',
+  'simple.holdReveal': 'Hold to see the answer',
+  'simple.holdHint': 'Only after your group has voted!',
+  'simple.holding': 'Keep holding…',
+
+  'answer.title': 'The answer',
+  'answer.imposter_one': 'The Imposter was',
+  'answer.imposter_other': 'The Imposters were',
+  'answer.undercover_one': 'The Undercover was',
+  'answer.undercover_other': 'The Undercovers were',
+  'answer.compare': 'Did your group get it right? 🤔',
+  'answer.nextRound': 'Next round',
+
   'clue.title': 'Time to give clues!',
   'clue.roundN': 'Clue round {round}',
   'clue.turn': '{name}',
@@ -427,6 +446,9 @@ export const en = {
   'twist.twoWords': 'Two different words are in play. Trust no one.',
 
   'rules.title': 'How to play',
+  'rules.styles.title': '📱 Two ways to play',
+  'rules.styles.body':
+    'Words only (default): pass the phone so everyone sees their word, then the phone says who starts and which way to go. Put it down, give clues, discuss and vote out loud — then hold the button to see who the Imposter really was. Full game (Settings → How you play): clues, timers, secret voting, the final guess and scores all happen on the phone.',
   'rules.basics.title': 'The basics',
   'rules.basics.body':
     'Everyone secretly gets the same word — except the Imposter, who gets nothing. Take turns giving one clue about the word. Then discuss and vote out who you think is faking it.',
@@ -506,6 +528,13 @@ export const en = {
   'settings.music': 'Music',
   'settings.haptics': 'Vibration',
   'settings.gameplay': 'Gameplay',
+  'settings.playStyle': 'How you play',
+  'settings.playStyle.simple': 'Words only',
+  'settings.playStyle.full': 'Full game',
+  'settings.playStyle.simpleHint':
+    'The phone deals the secret words, says who starts and which way to go, then shows the answer when you’re done. Clues, discussion and voting happen out loud.',
+  'settings.playStyle.fullHint':
+    'Clues, timers, secret voting, the imposter’s final guess and scores all happen on the phone.',
   'settings.revealStyle': 'Secret reveal',
   'settings.reveal.tap': 'Tap',
   'settings.reveal.hold': 'Hold',

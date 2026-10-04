@@ -11,4 +11,6 @@ export const TIMING = {
   voteLockedMs: 1100,
   /** Shuffle animation before the first reveal. */
   dealMs: 1700,
+  /** How long "Hold to see the answer" must be held. */
+  holdRevealMs: 1200,
 };

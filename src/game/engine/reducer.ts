@@ -26,6 +26,7 @@ export type GameAction =
   | { type: 'HIDE_SECRET' }
   | { type: 'SECRET_SEEN'; index: number }
   | { type: 'START_CLUES' }
+  | { type: 'REVEAL_ANSWER' }
   | { type: 'NEXT_CLUE'; index: number }
   | { type: 'ANOTHER_CLUE_ROUND' }
   | { type: 'START_DISCUSSION' }
@@ -161,8 +162,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'START_CLUES':
-      if (state.phase !== 'REVEAL_COMPLETE' || !round) return state;
+      if (state.phase !== 'REVEAL_COMPLETE' || !round || state.config.playStyle !== 'full') return state;
       return withRound(state, 'CLUE_PHASE', { clueIndex: 0, clueRound: 1 });
+
+    case 'REVEAL_ANSWER':
+      // Words-only style: the group has talked and voted out loud; show who was who.
+      if (state.phase !== 'REVEAL_COMPLETE' || !round || state.config.playStyle !== 'simple') return state;
+      return go(state, 'ANSWER', { roundsPlayed: state.roundsPlayed + 1 });
 
     case 'NEXT_CLUE':
       if (state.phase !== 'CLUE_PHASE' || !round || action.index !== round.clueIndex) return state;
@@ -289,7 +295,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return go(state, 'SCOREBOARD');
 
     case 'NEXT_ROUND': {
-      if (state.phase !== 'SCOREBOARD' || !round) return state;
+      if ((state.phase !== 'SCOREBOARD' && state.phase !== 'ANSWER') || !round) return state;
       if (!setupMatchesPlayers(action.setup, state.players)) return state;
       return go(state, 'WORD_GENERATED', {
         round: createRoundState(action.roundId, round.number + 1, state.players, action.setup),
@@ -309,7 +315,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...action.state, phase: safeRestorePhase(action.state.phase) };
 
     case 'RECORD_PEEK': {
-      if (!round || (state.phase !== 'CLUE_PHASE' && state.phase !== 'DISCUSSION')) return state;
+      const canPeek =
+        state.phase === 'CLUE_PHASE' ||
+        state.phase === 'DISCUSSION' ||
+        (state.phase === 'REVEAL_COMPLETE' && state.config.playStyle === 'simple');
+      if (!round || !canPeek) return state;
       if (!round.alive.includes(action.playerId)) return state;
       return { ...state, round: { ...round, peeks: [...round.peeks, action.playerId] } };
     }

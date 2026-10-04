@@ -25,7 +25,7 @@ let backListeners: (() => boolean)[] = [];
 
 beforeEach(async () => {
   // Drive the UI without component-local delays (their logic is covered in hooks.test.tsx).
-  Object.assign(TIMING, { gateArmMs: 0, hideArmMs: 0, voteLockedMs: 0, dealMs: 0 });
+  Object.assign(TIMING, { gateArmMs: 0, hideArmMs: 0, voteLockedMs: 0, dealMs: 0, holdRevealMs: 0 });
   await AsyncStorage.clear();
   __resetGameStoreForTests();
   settingsStore.set({
@@ -42,7 +42,7 @@ beforeEach(async () => {
     { id: 'c', name: 'Priya' },
     { id: 'd', name: 'Karthik' },
   ]);
-  configStore.set({ ...DEFAULT_GAME_CONFIG, discussionTimerSec: 30 });
+  configStore.set({ ...DEFAULT_GAME_CONFIG, discussionTimerSec: 30, playStyle: 'full' });
   customCategoriesStore.set([]);
   statsStore.reset();
   appStateListeners = [];
@@ -165,6 +165,36 @@ describe('app UI', () => {
     await press('round-scoreboard');
     await press('score-end', 1000);
     expect(getGameState().phase).toBe('GAME_COMPLETE');
+  });
+
+  it('words-only style: reveal, who starts, hold for the answer, next round (no scores)', async () => {
+    configStore.set({ ...configStore.get(), playStyle: 'simple' });
+    await startGameUI();
+    await tick(2000);
+    const n = getGameState().players.length;
+    for (let i = 0; i < n; i++) {
+      await press('reveal-gate-ready', 100);
+      await press('reveal-hide', 300);
+    }
+    expect(getGameState().phase).toBe('REVEAL_COMPLETE');
+    const round = getGameState().round!;
+    const starter = getGameState().players.find((p) => p.id === round.clueOrder[0])!.name;
+    expect(screen.getByTestId('simple-start').props.children).toBe(`${starter} starts`);
+    expect(screen.queryByTestId('clues-start')).toBeNull();
+    expect(screen.queryByTestId('answer-word')).toBeNull(); // nothing secret while the phone is down
+    // A plain tap does nothing — the answer needs a press-and-hold.
+    await fireEvent.press(screen.getByTestId('answer-hold'));
+    expect(getGameState().phase).toBe('REVEAL_COMPLETE');
+    await fireEvent(screen.getByTestId('answer-hold'), 'pressIn');
+    await tick(300);
+    expect(getGameState().phase).toBe('ANSWER');
+    const imposter = getGameState().players.find((p) => round.setup.roles[p.id] === 'imposter')!.name;
+    expect(screen.getByTestId('answer-imposters').props.children).toBe(imposter);
+    expect(screen.getByTestId('answer-word').props.children).toBe(round.setup.word.word);
+    expect(statsStore.get().totals.rounds).toBe(0);
+    await press('answer-next', 600);
+    expect(getGameState().phase).not.toBe('ANSWER');
+    expect(getGameState().round!.number).toBe(2);
   });
 
   it('config screen starts a game and navigates to it', async () => {

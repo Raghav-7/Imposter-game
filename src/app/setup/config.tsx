@@ -50,6 +50,8 @@ export default function ConfigScreen() {
   }, [config.imposterCount, config.roles, max, jesterAllowed]);
 
   const set = (patch: Partial<GameConfig>) => updateGameConfig(patch);
+  // Timers, voting and scoring only apply when the whole game is played on the phone.
+  const full = config.playStyle === 'full';
   const setScoring = (patch: Partial<ScoringConfig>) => set({ scoring: { ...config.scoring, ...patch } });
 
   const issues = validateSetup(players, config, source);
@@ -109,6 +111,12 @@ export default function ConfigScreen() {
         <Pill label={countLabel(Math.min(config.imposterCount, max))} tone="danger" />
         <Pill label={`${category.emoji} ${category.name}`} />
       </View>
+
+      <AppText variant="caption" tone="muted" style={styles.styleNote}>
+        {t('config.playStyleNote', {
+          style: full ? t('settings.playStyle.full') : t('settings.playStyle.simple'),
+        })}
+      </AppText>
 
       <SectionTitle>{t('config.mode')}</SectionTitle>
       <View style={styles.modes} accessibilityRole="radiogroup">
@@ -192,29 +200,33 @@ export default function ConfigScreen() {
         </>
       ) : null}
 
-      <SectionTitle>{t('config.timers')}</SectionTitle>
-      <AppText variant="caption" tone="muted" style={styles.subLabel}>
-        {t('config.clueTimer')}
-      </AppText>
-      <Segmented
-        label={t('config.clueTimer')}
-        value={config.clueTimerSec}
-        onChange={(v) => set({ clueTimerSec: v })}
-        options={CLUE_TIMER_OPTIONS.map((s) => ({ value: s, label: sec(s) }))}
-      />
-      <AppText variant="caption" tone="muted" style={styles.subLabel}>
-        {t('config.discussionTimer')}
-      </AppText>
-      <Segmented
-        label={t('config.discussionTimer')}
-        value={config.discussionTimerSec}
-        onChange={(v) => set({ discussionTimerSec: v })}
-        options={DISCUSSION_TIMER_OPTIONS.map((s) => ({
-          value: s,
-          label: discussionLabel(s),
-          accessibilityLabel: s === 0 ? t('common.unlimited') : discussionLabel(s),
-        }))}
-      />
+      {full ? (
+        <>
+          <SectionTitle>{t('config.timers')}</SectionTitle>
+          <AppText variant="caption" tone="muted" style={styles.subLabel}>
+            {t('config.clueTimer')}
+          </AppText>
+          <Segmented
+            label={t('config.clueTimer')}
+            value={config.clueTimerSec}
+            onChange={(v) => set({ clueTimerSec: v })}
+            options={CLUE_TIMER_OPTIONS.map((s) => ({ value: s, label: sec(s) }))}
+          />
+          <AppText variant="caption" tone="muted" style={styles.subLabel}>
+            {t('config.discussionTimer')}
+          </AppText>
+          <Segmented
+            label={t('config.discussionTimer')}
+            value={config.discussionTimerSec}
+            onChange={(v) => set({ discussionTimerSec: v })}
+            options={DISCUSSION_TIMER_OPTIONS.map((s) => ({
+              value: s,
+              label: discussionLabel(s),
+              accessibilityLabel: s === 0 ? t('common.unlimited') : discussionLabel(s),
+            }))}
+          />
+        </>
+      ) : null}
 
       <SectionTitle hint={t('config.rolesHint')}>{t('config.roles')}</SectionTitle>
       <Card style={styles.listCard}>
@@ -250,24 +262,30 @@ export default function ConfigScreen() {
 
       {advanced ? (
         <View style={styles.advanced}>
-          <AppText variant="caption" tone="muted" style={styles.subLabel}>
-            {t('config.tieRule')}
-          </AppText>
-          <Segmented
-            label={t('config.tieRule')}
-            value={config.tieRule}
-            onChange={(v) => set({ tieRule: v })}
-            options={[
-              { value: 'revote', label: t('config.tie.revote') },
-              { value: 'random', label: t('config.tie.random') },
-            ]}
-          />
+          {full ? (
+            <>
+              <AppText variant="caption" tone="muted" style={styles.subLabel}>
+                {t('config.tieRule')}
+              </AppText>
+              <Segmented
+                label={t('config.tieRule')}
+                value={config.tieRule}
+                onChange={(v) => set({ tieRule: v })}
+                options={[
+                  { value: 'revote', label: t('config.tie.revote') },
+                  { value: 'random', label: t('config.tie.random') },
+                ]}
+              />
+            </>
+          ) : null}
           <Card style={[styles.listCard, styles.gapTop]}>
-            <ToggleRow
-              label={t('config.finalGuess')}
-              value={config.finalGuess}
-              onChange={(v) => set({ finalGuess: v })}
-            />
+            {full ? (
+              <ToggleRow
+                label={t('config.finalGuess')}
+                value={config.finalGuess}
+                onChange={(v) => set({ finalGuess: v })}
+              />
+            ) : null}
             <ToggleRow
               label={t('config.teammates')}
               value={config.impostersSeeTeammates}
@@ -281,7 +299,7 @@ export default function ConfigScreen() {
               />
             ) : null}
           </Card>
-          {config.finalGuess ? (
+          {full && config.finalGuess ? (
             <>
               <AppText variant="caption" tone="muted" style={styles.subLabel}>
                 {t('config.guessStyle')}
@@ -314,32 +332,42 @@ export default function ConfigScreen() {
             </>
           ) : null}
 
-          <SectionTitle>{t('config.scoring')}</SectionTitle>
-          <Card style={styles.listCard}>
-            <ToggleRow
-              label={t('config.scoringEnabled')}
-              value={config.scoring.enabled}
-              onChange={(v) => setScoring({ enabled: v })}
-            />
-            {config.scoring.enabled
-              ? (
-                  ['civilianCorrectVote', 'civilianWin', 'imposterSurvive', 'imposterGuess', 'jesterVotedOut'] as const
-                ).map((k) => (
-                  <View key={k} style={styles.scoreRow}>
-                    <AppText variant="body" style={styles.flex}>
-                      {t(`config.score.${k}`)}
-                    </AppText>
-                    <Stepper
-                      value={config.scoring[k]}
-                      min={SCORE_LIMITS.min}
-                      max={SCORE_LIMITS.max}
-                      onChange={(v) => setScoring({ [k]: v })}
-                      label={t(`config.score.${k}`)}
-                    />
-                  </View>
-                ))
-              : null}
-          </Card>
+          {full ? (
+            <>
+              <SectionTitle>{t('config.scoring')}</SectionTitle>
+              <Card style={styles.listCard}>
+                <ToggleRow
+                  label={t('config.scoringEnabled')}
+                  value={config.scoring.enabled}
+                  onChange={(v) => setScoring({ enabled: v })}
+                />
+                {config.scoring.enabled
+                  ? (
+                      [
+                        'civilianCorrectVote',
+                        'civilianWin',
+                        'imposterSurvive',
+                        'imposterGuess',
+                        'jesterVotedOut',
+                      ] as const
+                    ).map((k) => (
+                      <View key={k} style={styles.scoreRow}>
+                        <AppText variant="body" style={styles.flex}>
+                          {t(`config.score.${k}`)}
+                        </AppText>
+                        <Stepper
+                          value={config.scoring[k]}
+                          min={SCORE_LIMITS.min}
+                          max={SCORE_LIMITS.max}
+                          onChange={(v) => setScoring({ [k]: v })}
+                          label={t(`config.score.${k}`)}
+                        />
+                      </View>
+                    ))
+                  : null}
+              </Card>
+            </>
+          ) : null}
         </View>
       ) : null}
     </Screen>
@@ -347,6 +375,7 @@ export default function ConfigScreen() {
 }
 
 const styles = StyleSheet.create({
+  styleNote: { marginTop: SPACE.sm },
   summary: { flexDirection: 'row', gap: SPACE.sm, flexWrap: 'wrap' },
   modes: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm },
   mode: { flexBasis: '47%', flexGrow: 1, borderRadius: RADIUS.lg, borderWidth: 1.5, padding: SPACE.md, gap: 4 },

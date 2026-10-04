@@ -24,6 +24,7 @@ import { PeekOverlay } from '../screens/game/PeekOverlay';
 import { GameCompletePhase, goHome, RoundResultPhase, ScoreboardPhase } from '../screens/game/ResultPhases';
 import { RevealPhase } from '../screens/game/RevealPhase';
 import { VoteResultPhase } from '../screens/game/VoteResultPhase';
+import { AnswerPhase, SimpleStartPhase } from '../screens/game/SimplePhases';
 import { VotingPhase } from '../screens/game/VotingPhase';
 
 const QUIET_PHASES: readonly Phase[] = ['CLUE_PHASE', 'DISCUSSION'];
@@ -44,7 +45,11 @@ export default function GameRoute() {
   const active = isInGame(phase);
   // The peek overlay only exists during clues/discussion; leaving those phases closes it.
   const peekContext = `${state.round?.id}:${phase}:${state.round?.eliminations.length}:${state.round?.clueRound}`;
-  const peekVisible = peekFor === peekContext && (phase === 'CLUE_PHASE' || phase === 'DISCUSSION');
+  const simple = state.config.playStyle === 'simple';
+  // In words-only style the phone sits face down here while everyone talks.
+  const talkingOutLoud = simple && phase === 'REVEAL_COMPLETE';
+  const peekPhase = phase === 'CLUE_PHASE' || phase === 'DISCUSSION' || talkingOutLoud;
+  const peekVisible = peekFor === peekContext && peekPhase;
   const sensitive = SENSITIVE_PHASES.includes(phase) || peekVisible;
 
   const leave = useCallback(async () => {
@@ -77,7 +82,7 @@ export default function GameRoute() {
         return true;
       }
       if (!isInGame(current)) return false;
-      if (current === 'GAME_COMPLETE') {
+      if (current === 'GAME_COMPLETE' || current === 'ANSWER') {
         exitGame();
         goHome();
         return true;
@@ -90,12 +95,13 @@ export default function GameRoute() {
 
   // Keep the screen on during a game (prevents the phone locking mid-discussion).
   useEffect(() => {
-    if (!active || !settings.keepAwake) return;
+    // While the phone is down in words-only style, let it sleep normally.
+    if (!active || !settings.keepAwake || talkingOutLoud) return;
     activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => undefined);
     return () => {
       deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => undefined);
     };
-  }, [active, settings.keepAwake]);
+  }, [active, settings.keepAwake, talkingOutLoud]);
 
   // Block screenshots / recents thumbnails while secrets could be on screen.
   useEffect(() => {
@@ -109,8 +115,8 @@ export default function GameRoute() {
   }, [sensitive]);
 
   useEffect(() => {
-    setMusicWanted(active && !QUIET_PHASES.includes(phase));
-  }, [active, phase]);
+    setMusicWanted(active && !QUIET_PHASES.includes(phase) && !talkingOutLoud);
+  }, [active, phase, talkingOutLoud]);
 
   if (!active) {
     return (
@@ -139,7 +145,7 @@ export default function GameRoute() {
       body = <RevealPhase state={state} />;
       break;
     case 'REVEAL_COMPLETE':
-      body = <RevealCompletePhase state={state} />;
+      body = simple ? <SimpleStartPhase state={state} onPeek={openPeek} /> : <RevealCompletePhase state={state} />;
       break;
     case 'CLUE_PHASE':
       body = <CluePhase state={state} onPeek={openPeek} />;
@@ -168,6 +174,9 @@ export default function GameRoute() {
     case 'GAME_COMPLETE':
       body = <GameCompletePhase state={state} />;
       break;
+    case 'ANSWER':
+      body = <AnswerPhase state={state} />;
+      break;
   }
 
   const title = phase === 'GAME_COMPLETE' ? '' : t('game.round', { round: round?.number ?? state.roundsPlayed });
@@ -175,7 +184,16 @@ export default function GameRoute() {
   return (
     <Screen
       title={title}
-      onBack={phase === 'GAME_COMPLETE' ? undefined : () => void leave()}
+      onBack={
+        phase === 'GAME_COMPLETE'
+          ? undefined
+          : phase === 'ANSWER'
+            ? () => {
+                exitGame();
+                goHome();
+              }
+            : () => void leave()
+      }
       backIcon="close"
       backLabel={t('game.exit')}
       testID={`phase-${phase}`}
