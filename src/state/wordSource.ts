@@ -3,7 +3,8 @@ import { useMemo } from 'react';
 import { BUILT_IN_CATEGORIES, MIXED_CATEGORY, RANDOM_CATEGORY, WORD_BANK } from '../data/words';
 import type { WordEntry } from '../data/words/types';
 import { normalizeKey } from '../game/engine/text';
-import type { CategorySource, WordSource } from '../game/types';
+import { enabledTopicIds } from '../game/engine/words';
+import type { CategorySource, GameConfig, WordSource } from '../game/types';
 import { type TFunction, useT } from '../localization';
 import { type CustomCategory, useCustomCategories } from './appData';
 
@@ -56,4 +57,28 @@ export function describeCategory(
   const c = custom.find((x) => x.id === id);
   if (c) return { emoji: c.emoji, name: c.name, exists: true };
   return { emoji: '❔', name: t('config.error.categoryMissing'), exists: false };
+}
+
+/**
+ * Display info for the ticked topics: one topic shows its own name, several show
+ * a count plus their names, none is flagged as a problem.
+ */
+export function describeTopics(
+  config: Pick<GameConfig, 'categoryId' | 'excludedCategories' | 'customInRandom'>,
+  t: TFunction,
+  custom: readonly CustomCategory[],
+  source: WordSource,
+): { emoji: string; name: string; exists: boolean; names: string | null } {
+  const multi = config.categoryId === RANDOM_CATEGORY || config.categoryId === MIXED_CATEGORY;
+  if (!multi) return { ...describeCategory(config.categoryId, t, custom), names: null };
+  const ids = enabledTopicIds(config, source.categories);
+  if (ids.length === 0) return { emoji: '⚠️', name: t('topics.noneShort'), exists: false, names: null };
+  if (ids.length === 1) return { ...describeCategory(ids[0]!, t, custom), names: null };
+  const all = ids.length === source.categories.length;
+  return {
+    emoji: config.categoryId === MIXED_CATEGORY ? '🌈' : '🎲',
+    name: all ? t('topics.all') : t('topics.count', { count: ids.length }),
+    exists: true,
+    names: all ? null : ids.map((id) => source.categories.find((c) => c.id === id)?.name ?? id).join(', '),
+  };
 }

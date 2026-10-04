@@ -305,6 +305,26 @@ describe('app UI', () => {
     expect(['Goa', 'Pizza', 'Cricket']).toContain(getGameState().round!.setup.word.word);
   });
 
+  it('topic picker: tick several topics and every round uses one of them', async () => {
+    await renderApp('/setup/category');
+    await press('topics-clear', 200);
+    expect(screen.getByText('Tick at least one topic to play.')).toBeTruthy();
+    expect(screen.getByTestId('topics-done').props.accessibilityState?.disabled).toBe(true);
+    await press('category-food', 200);
+    await press('category-animals', 200);
+    await press('category-tamil_movies', 200);
+    await press('category-animals', 200); // untick again
+    expect(screen.getByTestId('topics-count').props.children).toMatch(/^2 of \d+ topics on$/);
+    const cfg = configStore.get();
+    expect(cfg.categoryId).toBe('random');
+    for (let i = 0; i < 15; i++) {
+      __resetGameStoreForTests();
+      const source = buildWordSource((k, p) => translate('en', k, p), customCategoriesStore.get());
+      expect(startNewGame(rosterStore.get(), configStore.get(), source)).toEqual({ ok: true });
+      expect(['food', 'tamil_movies']).toContain(getGameState().round!.setup.word.categoryId);
+    }
+  });
+
   it('category toggles: presets and switches control Random & Mixed', async () => {
     await renderApp('/categories');
     await press('preset-everyday', 200);

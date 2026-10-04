@@ -18,7 +18,7 @@ import { useT } from '../../localization';
 import { setupIssueMessage } from '../../utils/messages';
 import { updateGameConfig, useCustomCategories, useGameConfig, useRoster } from '../../state/appData';
 import { enterSetupPhase, startNewGame } from '../../state/gameStore';
-import { describeCategory, useWordSource } from '../../state/wordSource';
+import { describeTopics, useWordSource } from '../../state/wordSource';
 import { RADIUS, SPACE, usePalette } from '../../theme';
 import { useGuardedCallback } from '../../utils/useGuardedCallback';
 import { safeBack } from '../../utils/navigation';
@@ -55,7 +55,7 @@ export default function ConfigScreen() {
   const setScoring = (patch: Partial<ScoringConfig>) => set({ scoring: { ...config.scoring, ...patch } });
 
   const issues = validateSetup(players, config, source);
-  const category = describeCategory(config.categoryId, t, custom);
+  const category = describeTopics(config, t, custom, source);
   const isCustom = config.categoryId.startsWith('custom:');
   const hiddenLabel = config.mode === 'undercover' ? t('config.undercovers') : t('config.imposters');
   const countLabel = (c: number) =>
@@ -182,9 +182,16 @@ export default function ConfigScreen() {
         ]}
       >
         <AppText style={styles.categoryEmoji}>{category.emoji}</AppText>
-        <AppText variant="heading" style={styles.flex} numberOfLines={1}>
-          {category.name}
-        </AppText>
+        <View style={styles.flex}>
+          <AppText variant="heading" numberOfLines={1}>
+            {category.name}
+          </AppText>
+          {category.names ? (
+            <AppText variant="caption" tone="muted" numberOfLines={2} testID="config-topic-names">
+              {category.names}
+            </AppText>
+          ) : null}
+        </View>
         <Ionicons name="chevron-forward" size={22} color={p.textMuted} />
       </Pressable>
 
