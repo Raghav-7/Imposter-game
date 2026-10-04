@@ -12,10 +12,23 @@ export interface CategoryPool {
   hasRelated: boolean;
 }
 
+/** Which categories Random/Mixed may draw from. */
+export type PoolOptions = Pick<GameConfig, 'excludedCategories' | 'customInRandom'>;
+
+/** True if this category takes part in Random/Mixed (built-ins default on, custom default off). */
+export function inRandomPool(category: Pick<CategorySource, 'id' | 'custom'>, options: Partial<PoolOptions>): boolean {
+  if (category.custom) return options.customInRandom ?? false;
+  return !(options.excludedCategories ?? []).includes(category.id);
+}
+
 /** Resolve the configured category id into the set of usable words, or null if it doesn't exist. */
-export function resolveCategoryPool(categoryId: string, source: WordSource): CategoryPool | null {
+export function resolveCategoryPool(
+  categoryId: string,
+  source: WordSource,
+  options: Partial<PoolOptions> = {},
+): CategoryPool | null {
   if (categoryId === RANDOM_CATEGORY || categoryId === MIXED_CATEGORY) {
-    const categories = source.categories.filter((c) => !c.custom && c.words.length > 0);
+    const categories = source.categories.filter((c) => c.words.length > 0 && inRandomPool(c, options));
     const words = categories.flatMap((c) => c.words);
     return {
       kind: categoryId === RANDOM_CATEGORY ? 'random' : 'mixed',
@@ -46,12 +59,12 @@ export interface PickedWord {
 export const GUESS_CHOICE_COUNT = 6;
 
 export function pickWord(
-  config: Pick<GameConfig, 'categoryId' | 'difficulty'>,
+  config: Pick<GameConfig, 'categoryId' | 'difficulty'> & Partial<PoolOptions>,
   source: WordSource,
   rng: Rng,
   options: { needsAltWord: boolean; recentKeys?: readonly string[] },
 ): { ok: true; value: PickedWord } | { ok: false; error: PickWordError } {
-  const pool = resolveCategoryPool(config.categoryId, source);
+  const pool = resolveCategoryPool(config.categoryId, source, config);
   if (!pool) return { ok: false, error: 'categoryMissing' };
   if (pool.words.length === 0) return { ok: false, error: 'categoryEmpty' };
 

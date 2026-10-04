@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '../../components/AppText';
 import { SectionTitle } from '../../components/controls';
 import { Screen } from '../../components/Screen';
-import { BUILT_IN_CATEGORIES, MIXED_CATEGORY, RANDOM_CATEGORY, WORD_BANK } from '../../data/words';
+import { BUILT_IN_CATEGORIES, CATEGORY_GROUPS, MIXED_CATEGORY, RANDOM_CATEGORY, WORD_BANK } from '../../data/words';
 import { haptic } from '../../haptics';
 import { useT } from '../../localization';
 import { updateGameConfig, useCustomCategories, useGameConfig } from '../../state/appData';
@@ -18,6 +18,10 @@ export default function CategoryPicker() {
   const t = useT();
   const p = usePalette();
   const config = useGameConfig();
+  const poolSummary = t('category.poolSummary', {
+    on: BUILT_IN_CATEGORIES.filter((c) => !config.excludedCategories.includes(c.id)).length,
+    total: BUILT_IN_CATEGORIES.length,
+  });
   const custom = useCustomCategories();
 
   const select = useGuardedCallback((id: string) => {
@@ -48,6 +52,20 @@ export default function CategoryPicker() {
           onSelect={select}
         />
       </View>
+      <Pressable
+        onPress={() => router.push('/categories')}
+        accessibilityRole="button"
+        accessibilityLabel={`${poolSummary}. ${t('category.poolEdit')}`}
+        style={styles.poolLink}
+        testID="category-pool-edit"
+      >
+        <AppText variant="caption" tone="muted" style={styles.flex}>
+          {poolSummary}
+        </AppText>
+        <AppText variant="caption" tone="primary" style={styles.poolEdit}>
+          {t('category.poolEdit')} ›
+        </AppText>
+      </Pressable>
 
       <SectionTitle>{t('category.yours')}</SectionTitle>
       <View style={styles.grid}>
@@ -80,20 +98,24 @@ export default function CategoryPicker() {
         </Pressable>
       </View>
 
-      <SectionTitle>{t('category.builtIn')}</SectionTitle>
-      <View style={styles.grid}>
-        {BUILT_IN_CATEGORIES.map((c) => (
-          <Tile
-            key={c.id}
-            id={c.id}
-            emoji={c.emoji}
-            name={t(`category.${c.id}`)}
-            sub={t('category.words_other', { count: WORD_BANK[c.id]?.length ?? 0 })}
-            selected={config.categoryId === c.id}
-            onSelect={select}
-          />
-        ))}
-      </View>
+      {CATEGORY_GROUPS.map((group) => (
+        <View key={group}>
+          <SectionTitle>{t(`group.${group}`)}</SectionTitle>
+          <View style={styles.grid}>
+            {BUILT_IN_CATEGORIES.filter((c) => c.group === group).map((c) => (
+              <Tile
+                key={c.id}
+                id={c.id}
+                emoji={c.emoji}
+                name={t(`category.${c.id}`)}
+                sub={t('category.words_other', { count: WORD_BANK[c.id]?.length ?? 0 })}
+                selected={config.categoryId === c.id}
+                onSelect={select}
+              />
+            ))}
+          </View>
+        </View>
+      ))}
     </Screen>
   );
 }
@@ -112,6 +134,9 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   wide: { flexBasis: '100%' },
+  poolLink: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, minHeight: 44, marginTop: SPACE.xs },
+  poolEdit: { fontWeight: '800' },
+  flex: { flex: 1 },
   create: { borderStyle: 'dashed' },
   emoji: { fontSize: 26, lineHeight: 32 },
   tileText: { flex: 1 },

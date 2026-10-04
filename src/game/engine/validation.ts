@@ -14,7 +14,8 @@ export type SetupIssue =
   | 'tooManyImposters'
   | 'categoryMissing'
   | 'categoryEmpty'
-  | 'needsTwoWords';
+  | 'needsTwoWords'
+  | 'noCategoriesEnabled';
 
 /**
  * Largest number of imposters for `playerCount` players. The non-imposter side
@@ -57,9 +58,9 @@ export function validateSetup(players: readonly Player[], config: GameConfig, so
   if (players.length >= MIN_PLAYERS && config.imposterCount > maxImposters(players.length, config)) {
     issues.push('tooManyImposters');
   }
-  const pool = resolveCategoryPool(config.categoryId, source);
+  const pool = resolveCategoryPool(config.categoryId, source, config);
   if (pool === null) issues.push('categoryMissing');
-  else if (pool.words.length === 0) issues.push('categoryEmpty');
+  else if (pool.words.length === 0) issues.push(pool.kind === 'single' ? 'categoryEmpty' : 'noCategoriesEnabled');
   else if (MODES[config.mode].needsAltWord && !canProvideAltWord(pool.words.length, pool.hasRelated)) {
     issues.push('needsTwoWords');
   }

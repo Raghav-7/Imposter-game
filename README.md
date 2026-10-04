@@ -6,7 +6,7 @@ Everyone secretly gets the same word — except the Imposter. Pass the phone, pe
 
 - 100% offline — no account, no internet, no ads, no tracking, **no permissions**
 - Android first (also runs on iOS and web via Expo)
-- 1,268 hand-checked words in 23 categories (incl. Indian Food, Bollywood, Cricket, Indian Cities), every word with Undercover pairs
+- 1,978 hand-checked words in 28 categories — big everyday topics (100+ words each) plus Indian, Tamil Nadu, Tamil Movies, Tamil Celebrities, Telugu and Malayalam cinema, Bollywood and Cricket — every word with Undercover pairs
 - English + Hindi UI
 
 ---
@@ -20,7 +20,7 @@ Everyone secretly gets the same word — except the Imposter. Pass the phone, pe
 | **Special roles** | Optional **Detective** (learns one innocent player) and **Jester** (wins if voted out). Chaos can add a **Secret Agent** (knows one of two suspects is guilty) and a second secret word. |
 | **Chaos twists** | Short clues · first clue one word · no repeating ideas · no physical descriptions · last player sound/gesture only · 10-second speed round · scrambled order · secret agent · imposter gets the category · two words in play |
 | **Players** | Add / rename / remove / reorder / shuffle / quick-add, duplicate & blank name validation, emoji & Unicode names, saved between games |
-| **Words** | 23 built-in categories + Random + Mixed, Easy/Medium/Hard, recently-used words avoided, custom categories (create, rename, delete, paste many words at once, import/export as text) |
+| **Words** | 28 built-in categories in four groups + Random + Mixed, Easy/Medium/Hard, per-topic on/off switches and quick presets (All · Everyday · Tamil special · Movies & pop) for what Random/Mixed draw from, recently-used words avoided, custom categories (create, rename, delete, paste many words at once, import/export as text) |
 | **Private reveal** | Pass-the-phone gate per player, tap *or* hold-to-reveal, identical-looking cards for every role, armed buttons so a double tap can't reveal the next card, screenshot/recents blocking, auto-hide when the app is backgrounded |
 | **Round flow** | Clue phase (optional 15–60 s per clue, re-run laps) → discussion timer (30 s–2 min or unlimited, pause/resume/+30 s) → secret ballot (pass the phone, change pick, lock in, progress dots, no early results) → dramatic tally → role reveal → final guess (multiple choice or typed with typo tolerance + "close enough" override) → winner → scoreboard → next round |
 | **Ties** | Revote between tied players (default) or random pick; a tied revote is broken randomly so games never loop |
@@ -87,7 +87,7 @@ npm run verify    # typecheck + lint + format check + tests
 
 | Layer | How it is tested |
 | --- | --- |
-| Word bank | `tests/data` — validator over all 1,268 words |
+| Word bank | `tests/data` — validator over all 1,978 words |
 | Game engine | `tests/engine` — unit tests for every rule, end-to-end rounds (3p/1i, imposter survives, caught + correct/incorrect guess, 10p/2i, 15p/3i, undercover, tie, revote, custom category, jester), fast-check property tests, **1,500 random full-game simulations**, 2,000-round randomness/χ² checks |
 | State & persistence | `tests/state` — stats correctness and idempotency, corrupted-data recovery, storage failures, kill-and-resume, backup import/export, log redaction |
 | UI | `tests/ui` — the real Expo Router app rendered with Testing Library: full game by button presses, background/back-button secret hiding, timer behaviour, validation, custom categories |
@@ -149,9 +149,11 @@ Edit `src/data/words/categories/<category>.ts`:
 ## Adding a category
 
 1. Create `src/data/words/categories/my_category.ts` exporting `words: WordSeed[]`.
-2. Add the id to `BuiltInCategoryId` (`src/data/words/types.ts`), to `BUILT_IN_CATEGORIES` (`categories.ts`, with an emoji), and import it in `src/data/words/index.ts`.
+2. Add the id to `BuiltInCategoryId` (`src/data/words/types.ts`), to `BUILT_IN_CATEGORIES` (`categories.ts`, with an emoji and a group: everyday / india / cinema / pop), and import it in `src/data/words/index.ts`.
 3. Add `category.my_category` to `src/localization/en.ts` (and `hi.ts`).
-4. `npm run validate:words`.
+4. `npm run check:words` (fast) or `npm run validate:words` (Jest).
+
+Players choose which topics Random and Mixed use under **Categories → Topics for Random & Mixed** (stored as `excludedCategories` / `customInRandom` in the game config). Picking a category directly always works, even if it is switched off for Random.
 
 Players can also create categories in-app (Categories → New category).
 

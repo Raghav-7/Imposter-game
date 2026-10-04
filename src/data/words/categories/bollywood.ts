@@ -31,7 +31,6 @@ export const words: WordSeed[] = [
   { word: 'Kishore Kumar', difficulty: 'medium', related: ['Mohammed Rafi', 'Mukesh'] },
   { word: 'Asha Bhosle', difficulty: 'medium', related: ['Lata Mangeshkar', 'Shreya Ghoshal'] },
   { word: 'Shreya Ghoshal', difficulty: 'medium', related: ['Sunidhi Chauhan', 'Arijit Singh'] },
-  { word: 'A. R. Rahman', difficulty: 'medium', related: ['Pritam', 'Shankar Mahadevan'] },
   { word: 'Karan Johar', difficulty: 'medium', related: ['Sanjay Leela Bhansali', 'Rohit Shetty'] },
   { word: 'Rohit Shetty', difficulty: 'medium', related: ['Karan Johar', 'Farah Khan'] },
   { word: 'Ranbir Kapoor', difficulty: 'medium', related: ['Ranveer Singh', 'Shahid Kapoor'] },

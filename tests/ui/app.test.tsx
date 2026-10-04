@@ -264,6 +264,17 @@ describe('app UI', () => {
     expect(['Goa', 'Pizza', 'Cricket']).toContain(getGameState().round!.setup.word.word);
   });
 
+  it('category toggles: presets and switches control Random & Mixed', async () => {
+    await renderApp('/categories');
+    await press('preset-everyday', 200);
+    expect(configStore.get().excludedCategories).toEqual(expect.arrayContaining(['movies', 'cricket', 'tamil_movies']));
+    expect(screen.getByText(/of 28 topics on/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('switch', { name: /^Food./ }));
+    expect(configStore.get().excludedCategories).toContain('food');
+    await press('preset-all', 200);
+    expect(configStore.get().excludedCategories).toEqual([]);
+  });
+
   it('renders rules, stats (empty state) and settings screens', async () => {
     await renderApp('/rules');
     expect(screen.getByText('How to play')).toBeTruthy();
