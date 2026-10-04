@@ -195,6 +195,29 @@ const scenarios = {
       },
     });
     log('roles', JSON.stringify(roles));
+    if (find(dump(), { id: 'answer-hold' })) {
+      await shot('simple-start');
+      const { n: hold } = await waitFor({ id: 'answer-hold' });
+      const [hx, hy] = center(hold);
+      adb('shell', 'input', 'swipe', String(hx), String(hy), String(hx), String(hy), '1700');
+      await sleep(1500);
+      const { xml: ans } = await waitFor({ id: 'answer-word' });
+      log(
+        'answer shown:',
+        decode(find(ans, { id: 'answer-imposters' })?.text),
+        '/',
+        decode(find(ans, { id: 'answer-word' }).text),
+      );
+      await shot('answer');
+      await tap({ id: 'answer-next' }, 2500);
+      log('next round gate?', !!find(dump(), { id: 'reveal-gate-ready' }));
+      adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+      await sleep(900);
+      await tap({ text: 'Leave game' }, 1500);
+      const errs = crashed();
+      log('crash/error lines:', errs.length ? errs.join('\n') : 'none');
+      return;
+    }
     await shot('reveal-complete');
     await tap({ id: 'clues-start' });
     await shot('clue');

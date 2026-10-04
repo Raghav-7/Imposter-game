@@ -34,7 +34,9 @@ The reducer is pure. Every random decision is made from a `Seed` (4 × uint32) c
 3. **Picks the word** (`engine/words.ts`): resolve category (`random` → one random enabled category, `mixed` → all words from enabled categories, `custom:*` → that list; enabled = built-ins not in `config.excludedCategories`, plus custom lists when `config.customInRandom`), prefer the chosen difficulty, avoid the last 60 used words, choose uniformly. Undercover's alt word comes from the word's `related` list, else another word from the same category. Builds 6 shuffled final-guess choices (secret + decoys, never the alt word).
 4. **Assigns roles**: shuffle all player ids once, then take the first *I* as the mode's hunted role (`imposter` or `undercover`), then optional `undercover` (chaos two-words), `jester`, `detective`, `agent`; everyone else is `civilian`. Because a single uniform shuffle is used, every subset of players is equally likely and no player can receive two roles.
 5. **Builds intel**: Detective → one random non-hunted player; Secret Agent → a shuffled pair of one hunted + one other civilian-team player.
-6. **Clue order**: rotate seating order from a random start (or full shuffle with the *random order* twist).
+6. **Speaking order**: players are listed in clockwise seating order; a random first speaker and a random direction (`setup.direction`: clockwise / anticlockwise) give the order (or a full shuffle with the *random order* twist). Both play styles use it.
+
+**Play styles** (`config.playStyle`): `simple` (default, "Words only") ends the on-phone flow after the reveal — `REVEAL_ANSWER` goes from `REVEAL_COMPLETE` to `ANSWER`; `full` runs clues, discussion, voting, final guess and scoring on the phone.
 
 ### Secrets (`engine/secrets.ts`)
 
@@ -50,7 +52,7 @@ The reducer is pure. Every random decision is made from a `Seed` (4 × uint32) c
 | `WORD_GENERATED` | roles dealt, shuffle animation | `ROLE_REVEAL_INTRO` |
 | `ROLE_REVEAL_INTRO` | "pass the phone to X" (no secret on screen) | `ROLE_REVEAL` |
 | `ROLE_REVEAL` | X's card visible | `ROLE_REVEAL_INTRO` (next player, or hide on background/back), `REVEAL_COMPLETE` |
-| `REVEAL_COMPLETE` | everyone has seen their card | `CLUE_PHASE` |
+| `REVEAL_COMPLETE` | everyone has seen their card. Words-only style: shows the first speaker, direction and the hold-to-reveal button | `CLUE_PHASE` (full style), `ANSWER` (words-only style) |
 | `CLUE_PHASE` | one clue each (`clueIndex`), laps allowed | `CLUE_PHASE`, `DISCUSSION` |
 | `DISCUSSION` | timer | `VOTING` |
 | `VOTING` | secret ballot, `voterIndex` | `VOTING`, `VOTE_RESULT` |
@@ -60,6 +62,7 @@ The reducer is pure. Every random decision is made from a `Seed` (4 × uint32) c
 | `ROUND_RESULT` | winner + roles + points | `SCOREBOARD` |
 | `SCOREBOARD` | running totals | `WORD_GENERATED` (next round), `GAME_COMPLETE` |
 | `GAME_COMPLETE` | final standings (round secrets dropped) | `IDLE`, `WORD_GENERATED` (play again) |
+| `ANSWER` | words-only style: who the Imposter(s) were and the word(s); no scores or stats | `WORD_GENERATED` (next round), `IDLE` |
 
 Every in-game phase may exit to `IDLE`. `go()` refuses any transition not in the table, and each action also checks its own preconditions (correct reveal index, current voter, valid target, all votes in, …). Rejected actions return the **same object**, which makes rapid double taps harmless: duplicate votes, double "next", double scoring and double start are all no-ops.
 

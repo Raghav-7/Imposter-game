@@ -16,7 +16,7 @@ import { randomId } from '../game/engine/seed';
 import { validatePlayers } from '../game/engine/validation';
 import type { GameState, Player } from '../game/types';
 import { useT } from '../localization';
-import { rosterStore } from '../state/appData';
+import { configStore, rosterStore } from '../state/appData';
 import { discardSavedGame, getGameState, loadSavedGame, resumeGame, startNewGame } from '../state/gameStore';
 import { useSettings } from '../state/settings';
 import { useWordSource } from '../state/wordSource';
@@ -88,7 +88,18 @@ export default function HomeScreen() {
             name: t('players.defaultName', { index: i + 1 }),
           }));
     if (roster.length < 3) rosterStore.set(players);
-    const res = startNewGame(players, { ...QUICK_PLAY_CONFIG }, source);
+    // Quick Play keeps the group's play style and topic switches.
+    const saved = configStore.get();
+    const res = startNewGame(
+      players,
+      {
+        ...QUICK_PLAY_CONFIG,
+        playStyle: saved.playStyle,
+        excludedCategories: saved.excludedCategories,
+        customInRandom: saved.customInRandom,
+      },
+      source,
+    );
     if (res.ok) {
       setSaved(null);
       router.push('/game');

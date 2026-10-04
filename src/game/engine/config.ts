@@ -23,6 +23,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   roles: { detective: false, jester: false },
   chaosModifierCount: 2,
   scoring: DEFAULT_SCORING,
+  playStyle: 'simple',
 };
 
 /** Quick Play: zero-config sensible game. */
@@ -87,5 +88,6 @@ export function sanitizeConfig(raw: unknown): GameConfig {
     roles: { detective: bool(roles.detective, false), jester: bool(roles.jester, false) },
     chaosModifierCount: oneOf(r.chaosModifierCount, [1, 2] as const, d.chaosModifierCount),
     scoring: sanitizeScoring(r.scoring),
+    playStyle: oneOf(r.playStyle, ['simple', 'full'] as const, d.playStyle),
   };
 }

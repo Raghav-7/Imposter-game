@@ -15,6 +15,7 @@ Everyone secretly gets the same word — except the Imposter. Pass the phone, pe
 
 | Area | What you get |
 | --- | --- |
+| **Play styles** | **Words only** (default): the phone deals the secret words, says who starts and whether to go clockwise or anticlockwise, then you put it down — clues, discussion and voting happen out loud — and press-and-hold to see who the Imposter was. **Full game** (Settings → How you play): clues, timers, secret voting, final guess and scores on the phone. |
 | **Modes** | **Classic** (imposter sees only the category) · **Undercover** (odd one out gets a similar word — Pizza vs Burger) · **Blind** (imposter gets nothing) · **Chaos** (1–2 random twists per round) |
 | **Multiple imposters** | 1–3 in any mode, auto-limited by player count (5+ players → 2, 7+ → 3). Optional "imposters know each other". |
 | **Special roles** | Optional **Detective** (learns one innocent player) and **Jester** (wins if voted out). Chaos can add a **Secret Agent** (knows one of two suspects is guilty) and a second secret word. |
@@ -81,7 +82,7 @@ IMPOSTER_KEY_PASSWORD=…
 ## Testing
 
 ```bash
-npm test          # 131 tests across 9 suites
+npm test          # 144 tests across 9 suites
 npm run verify    # typecheck + lint + format check + tests
 ```
 
@@ -126,6 +127,8 @@ docs/ARCHITECTURE.md     Developer documentation
 ```
 
 ## Game rules (short)
+
+By default the app runs in **Words only** style: it deals the words, picks the first speaker and direction, and reveals the answer at the end; everything in between happens out loud. The steps below describe the **Full game** style.
 
 1. Everyone privately views their card. Civilians see the secret word; the Imposter sees "YOU'RE THE IMPOSTER" (plus the category in Classic).
 2. In clue order, each player says one clue about the word.
