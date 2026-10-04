@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { playSound } from '../../audio/sound';
 import { AppText } from '../../components/AppText';
@@ -37,7 +37,7 @@ export function SimpleStartPhase({ state, onPeek }: { state: GameState; onPeek?:
 
   return (
     <View style={styles.root}>
-      <View style={styles.top}>
+      <ScrollView style={styles.answerScroll} contentContainerStyle={styles.top}>
         <AppText variant="label" tone="muted" align="center">
           {t('simple.title')}
         </AppText>
@@ -85,7 +85,7 @@ export function SimpleStartPhase({ state, onPeek }: { state: GameState; onPeek?:
         <AppText variant="bodyStrong" tone="muted" align="center" style={styles.phoneDown}>
           {t('simple.phoneDown')}
         </AppText>
-      </View>
+      </ScrollView>
 
       <View style={styles.actions}>
         <AppText variant="caption" tone="faint" align="center">
@@ -138,7 +138,8 @@ export function AnswerPhase({ state }: { state: GameState }) {
 
   return (
     <View style={styles.root}>
-      <View style={styles.answerTop}>
+      {/* Long role lists scroll; Next round / Home stay pinned above the navigation bar. */}
+      <ScrollView style={styles.answerScroll} contentContainerStyle={styles.answerTop}>
         <AppText variant="label" tone="muted" align="center">
           {t('answer.title')}
         </AppText>
@@ -220,7 +221,7 @@ export function AnswerPhase({ state }: { state: GameState }) {
         <AppText variant="body" tone="muted" align="center">
           {t('answer.compare')}
         </AppText>
-      </View>
+      </ScrollView>
 
       <View style={styles.actions}>
         <Button label={t('answer.nextRound')} icon="play" onPress={next} haptics="confirm" testID="answer-next" />
@@ -241,7 +242,7 @@ export function AnswerPhase({ state }: { state: GameState }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'space-between', paddingVertical: SPACE.md, gap: SPACE.lg },
+  root: { flex: 1, minHeight: 0, justifyContent: 'space-between', paddingVertical: SPACE.md, gap: SPACE.lg },
   top: { gap: SPACE.md },
   startCard: { gap: SPACE.sm, alignItems: 'center', paddingVertical: SPACE.xl },
   directionRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm },
@@ -250,7 +251,8 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.pill, maxWidth: 170 },
   phoneDown: { marginTop: SPACE.sm },
   actions: { gap: SPACE.sm },
-  answerTop: { gap: SPACE.lg },
+  answerScroll: { flex: 1 },
+  answerTop: { gap: SPACE.lg, paddingBottom: SPACE.md },
   reveal: { alignItems: 'center', gap: SPACE.xs },
   words: { flexDirection: 'row', gap: SPACE.md },
   wordCol: { flex: 1, gap: 2 },
