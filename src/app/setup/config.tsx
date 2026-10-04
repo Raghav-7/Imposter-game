@@ -286,6 +286,15 @@ export default function ConfigScreen() {
                 onChange={(v) => set({ finalGuess: v })}
               />
             ) : null}
+            {config.mode === 'classic' || config.mode === 'chaos' ? (
+              <ToggleRow
+                label={t('config.imposterHint')}
+                hint={t('config.imposterHintHint')}
+                value={config.imposterHint}
+                onChange={(v) => set({ imposterHint: v })}
+                testID="config-hint"
+              />
+            ) : null}
             <ToggleRow
               label={t('config.teammates')}
               value={config.impostersSeeTeammates}

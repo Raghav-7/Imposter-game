@@ -7,7 +7,7 @@ import { setMusicWanted } from '../audio/sound';
 import { AppText } from '../components/AppText';
 import { FadeIn, Pulse } from '../components/anim';
 import { Button } from '../components/Button';
-import { Card } from '../components/controls';
+import { Card, ToggleRow } from '../components/controls';
 import { choose, toast } from '../components/Overlay';
 import { Screen } from '../components/Screen';
 import { BUILT_IN_CATEGORIES, totalBuiltInWords } from '../data/words';
@@ -16,7 +16,7 @@ import { randomId } from '../game/engine/seed';
 import { validatePlayers } from '../game/engine/validation';
 import type { GameState, Player } from '../game/types';
 import { useT } from '../localization';
-import { configStore, rosterStore } from '../state/appData';
+import { configStore, rosterStore, updateGameConfig, useGameConfig } from '../state/appData';
 import { discardSavedGame, getGameState, loadSavedGame, resumeGame, startNewGame } from '../state/gameStore';
 import { useSettings } from '../state/settings';
 import { useWordSource } from '../state/wordSource';
@@ -30,6 +30,7 @@ export default function HomeScreen() {
   const p = usePalette();
   const settings = useSettings();
   const source = useWordSource();
+  const gameConfig = useGameConfig();
   const [saved, setSaved] = useState<GameState | null>(null);
   const checkedSave = useRef(false);
 
@@ -97,6 +98,7 @@ export default function HomeScreen() {
         playStyle: saved.playStyle,
         excludedCategories: saved.excludedCategories,
         customInRandom: saved.customInRandom,
+        imposterHint: saved.imposterHint,
       },
       source,
     );
@@ -202,6 +204,17 @@ export default function HomeScreen() {
           onPress={quickPlay}
           testID="home-quick"
         />
+        {/* Same switch as the setup screen's "Imposter hint", so both games follow it. */}
+        <Card style={styles.hintCard}>
+          <ToggleRow
+            icon="💡"
+            label={t('home.hintToggle')}
+            hint={gameConfig.imposterHint ? t('home.hintOn') : t('home.hintOff')}
+            value={gameConfig.imposterHint}
+            onChange={(v) => updateGameConfig({ imposterHint: v })}
+            testID="home-hint"
+          />
+        </Card>
       </FadeIn>
 
       <FadeIn delay={220} style={styles.grid}>
@@ -257,6 +270,7 @@ const styles = StyleSheet.create({
   partyText: { color: '#FFFFFF', letterSpacing: 6 },
   tagline: { marginTop: SPACE.md },
   actions: { gap: SPACE.md },
+  hintCard: { paddingVertical: SPACE.xs },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.md },
   tile: {
     flexBasis: '46%',

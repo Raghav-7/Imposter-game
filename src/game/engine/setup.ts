@@ -86,6 +86,7 @@ export function twoWordsFits(playerCount: number, config: GameConfig): boolean {
 export function rollModifiers(rng: Rng, playerCount: number, config: GameConfig, altPossible: boolean): ModifierId[] {
   const eligible = MODIFIER_IDS.filter((id) => {
     if (id === 'twoWords') return altPossible && twoWordsFits(playerCount, config);
+    if (id === 'imposterCategory') return config.imposterHint;
     return true;
   });
   const chosen: ModifierId[] = [];

@@ -167,6 +167,7 @@ export function ToggleRow({
   onChange,
   disabled,
   icon,
+  testID,
 }: {
   label: string;
   hint?: string;
@@ -174,6 +175,7 @@ export function ToggleRow({
   onChange: (v: boolean) => void;
   disabled?: boolean;
   icon?: string;
+  testID?: string;
 }) {
   const p = usePalette();
   return (
@@ -183,6 +185,7 @@ export function ToggleRow({
       accessibilityState={{ checked: value, disabled: !!disabled }}
       accessibilityLabel={hint ? `${label}. ${hint}` : label}
       style={[styles.row, { opacity: disabled ? 0.5 : 1 }]}
+      testID={testID}
     >
       {icon ? <AppText style={styles.rowIcon}>{icon}</AppText> : null}
       <View style={styles.rowText}>

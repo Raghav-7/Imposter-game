@@ -24,6 +24,7 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   chaosModifierCount: 2,
   scoring: DEFAULT_SCORING,
   playStyle: 'simple',
+  imposterHint: true,
 };
 
 /** Quick Play: zero-config sensible game. */
@@ -89,5 +90,6 @@ export function sanitizeConfig(raw: unknown): GameConfig {
     chaosModifierCount: oneOf(r.chaosModifierCount, [1, 2] as const, d.chaosModifierCount),
     scoring: sanitizeScoring(r.scoring),
     playStyle: oneOf(r.playStyle, ['simple', 'full'] as const, d.playStyle),
+    imposterHint: bool(r.imposterHint, d.imposterHint),
   };
 }

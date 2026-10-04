@@ -75,6 +75,8 @@ export interface GameConfig {
    * clues, discussion and voting happen out loud. 'full': everything on the phone.
    */
   playStyle: PlayStyle;
+  /** Imposters may see the category as a hint (Classic, and Chaos's category twist). Off = never. */
+  imposterHint: boolean;
 }
 
 /** A playable category (built-in or custom) handed to the engine. */

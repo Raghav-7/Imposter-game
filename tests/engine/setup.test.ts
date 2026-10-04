@@ -211,7 +211,33 @@ describe('modes', () => {
     expect(view.categoryHint).toBeNull();
   });
 
-  it('undercover: undercover gets the alternate word and (by default) looks like a civilian', () => {
+  it('imposter hint off: classic imposter gets no category', () => {
+    const s = startGame(makePlayers(5), config({ mode: 'classic', categoryId: 'food', imposterHint: false }));
+    const view = getSecretView(s, idsWithRole(s, 'imposter')[0]!)!;
+    expect(view.word).toBeNull();
+    expect(view.categoryHint).toBeNull();
+  });
+
+  it('imposter hint off: chaos never rolls the "imposter knows the category" twist', () => {
+    let rolledWithHint = false;
+    for (let seed = 1; seed < 300; seed++) {
+      const on = createRoundSetup(makePlayers(6), config({ mode: 'chaos' }), builtInSource(), seedFromNumber(seed));
+      if (on.ok && on.setup.modifiers.includes('imposterCategory')) rolledWithHint = true;
+      const s = startGame(makePlayers(6), config({ mode: 'chaos', imposterHint: false }), seed);
+      expect(s.round!.setup.modifiers).not.toContain('imposterCategory');
+      for (const id of idsWithRole(s, 'imposter')) expect(getSecretView(s, id)!.categoryHint).toBeNull();
+    }
+    expect(rolledWithHint).toBe(true);
+  });
+
+  it('imposter hint defaults on and old saved settings without it stay on', () => {
+    expect(DEFAULT_GAME_CONFIG.imposterHint).toBe(true);
+    const { imposterHint: _, ...old } = DEFAULT_GAME_CONFIG;
+    expect(sanitizeConfig(old).imposterHint).toBe(true);
+    expect(sanitizeConfig({ ...old, imposterHint: false }).imposterHint).toBe(false);
+  });
+
+  it('undercover:undercover gets the alternate word and (by default) looks like a civilian', () => {
     for (let seed = 1; seed < 40; seed++) {
       const s = startGame(makePlayers(6), config({ mode: 'undercover', imposterCount: 2 }), seed);
       const setup = s.round!.setup;
