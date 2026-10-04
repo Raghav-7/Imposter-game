@@ -197,7 +197,8 @@ export default function GameRoute() {
       backIcon="close"
       backLabel={t('game.exit')}
       testID={`phase-${phase}`}
-      scroll={phase !== 'VOTING'}
+      // These phases scroll their own content so the main buttons stay pinned on small screens.
+      scroll={phase !== 'VOTING' && phase !== 'ANSWER' && !(simple && phase === 'REVEAL_COMPLETE')}
     >
       {body}
       {state.round && peekVisible ? <PeekOverlay state={state} onClose={() => setPeekFor(null)} /> : null}
