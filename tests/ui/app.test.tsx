@@ -105,6 +105,17 @@ describe('app UI', () => {
     expect(screen.getByText('Rules')).toBeTruthy();
   });
 
+  it('home hint toggle turns the imposter hint off for Quick Play', async () => {
+    await renderApp();
+    expect(configStore.get().imposterHint).toBe(true);
+    await fireEvent.press(screen.getByTestId('home-hint'));
+    expect(configStore.get().imposterHint).toBe(false);
+    expect(screen.getByText('No hint. Imposter gets nothing')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('home-quick'));
+    await tick(500);
+    expect(getGameState().config.imposterHint).toBe(false);
+  });
+
   it('plays a full classic game through the UI and records stats', async () => {
     await startGameUI();
     await tick(2000); // deal animation auto-advances

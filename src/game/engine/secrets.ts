@@ -25,7 +25,8 @@ export function getSecretView(state: GameState, playerId: PlayerId): SecretView 
 
   switch (role) {
     case 'imposter': {
-      const seesCategory = mode.imposterSeesCategory || setup.modifiers.includes('imposterCategory');
+      const seesCategory =
+        state.config.imposterHint && (mode.imposterSeesCategory || setup.modifiers.includes('imposterCategory'));
       view.categoryHint = seesCategory ? setup.word.categoryName || null : null;
       if (state.config.impostersSeeTeammates) {
         view.teammateNames = Object.keys(setup.roles)
