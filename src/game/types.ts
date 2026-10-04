@@ -46,6 +46,10 @@ export interface GameConfig {
   imposterCount: number;
   /** Built-in category id, "random", "mixed" or a custom category id ("custom:…"). */
   categoryId: string;
+  /** Built-in category ids that Random and Mixed skip. */
+  excludedCategories: string[];
+  /** Custom categories also take part in Random and Mixed. */
+  customInRandom: boolean;
   difficulty: Difficulty;
   clueTimerSec: ClueTimer;
   /** 0 = unlimited */

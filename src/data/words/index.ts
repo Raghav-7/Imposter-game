@@ -24,6 +24,11 @@ import { words as sports } from './categories/sports';
 import { words as technology } from './categories/technology';
 import { words as travel } from './categories/travel';
 import { words as tvShows } from './categories/tv_shows';
+import { words as tamilNadu } from './categories/tamil_nadu';
+import { words as tamilMovies } from './categories/tamil_movies';
+import { words as tamilCelebrities } from './categories/tamil_celebrities';
+import { words as teluguCinema } from './categories/telugu_cinema';
+import { words as malayalamCinema } from './categories/malayalam_cinema';
 
 export const RAW_WORDS: Readonly<Record<BuiltInCategoryId, readonly WordSeed[]>> = {
   food,
@@ -49,6 +54,11 @@ export const RAW_WORDS: Readonly<Record<BuiltInCategoryId, readonly WordSeed[]>>
   indian_cities: indianCities,
   countries,
   internet_memes: internetMemes,
+  tamil_nadu: tamilNadu,
+  tamil_movies: tamilMovies,
+  tamil_celebrities: tamilCelebrities,
+  telugu_cinema: teluguCinema,
+  malayalam_cinema: malayalamCinema,
 };
 
 export function slugify(text: string): string {

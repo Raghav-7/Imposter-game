@@ -10,6 +10,8 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   mode: 'classic',
   imposterCount: 1,
   categoryId: 'random',
+  excludedCategories: [],
+  customInRandom: true,
   difficulty: 'medium',
   clueTimerSec: 0,
   discussionTimerSec: 90,
@@ -70,6 +72,10 @@ export function sanitizeConfig(raw: unknown): GameConfig {
     mode: oneOf(r.mode, MODE_ORDER, d.mode),
     imposterCount: intIn(r.imposterCount, 1, MAX_IMPOSTERS, d.imposterCount),
     categoryId: typeof r.categoryId === 'string' && r.categoryId.length > 0 ? r.categoryId : d.categoryId,
+    excludedCategories: Array.isArray(r.excludedCategories)
+      ? [...new Set(r.excludedCategories.filter((x): x is string => typeof x === 'string'))]
+      : d.excludedCategories,
+    customInRandom: bool(r.customInRandom, d.customInRandom),
     difficulty: oneOf(r.difficulty, DIFFICULTIES, d.difficulty),
     clueTimerSec: oneOf(r.clueTimerSec, CLUE_TIMER_OPTIONS, d.clueTimerSec),
     discussionTimerSec: oneOf(r.discussionTimerSec, DISCUSSION_TIMER_OPTIONS, d.discussionTimerSec),

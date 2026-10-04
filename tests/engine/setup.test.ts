@@ -8,8 +8,11 @@ import {
   seedFromNumber,
   validatePlayers,
   validateSetup,
+  DEFAULT_GAME_CONFIG,
+  sanitizeConfig,
 } from '../../src/game';
 import { normalizeKey } from '../../src/game/engine/text';
+import { BUILT_IN_CATEGORY_IDS, presetExclusions } from '../../src/data/words';
 import { builtInSource, config, customCategory, idsWithRole, makePlayers, startGame } from '../helpers';
 
 describe('player validation', () => {
@@ -301,5 +304,65 @@ describe('modes', () => {
       const s = startGame(makePlayers(4), config({ mode: 'chaos' }), seed);
       expect(s.round!.setup.modifiers).not.toContain('twoWords');
     }
+  });
+});
+
+describe('category toggles for Random & Mixed', () => {
+  const src = builtInSource([customCategory('custom:friends', ['Goa', 'Pizza Night', 'Hostel Maggi'])]);
+
+  it('Random never picks a switched-off topic', () => {
+    const excluded = ['movies', 'sports', 'cricket', 'bollywood', 'tv_shows', 'celebrities'];
+    for (let seed = 0; seed < 400; seed++) {
+      const res = createRoundSetup(
+        makePlayers(4),
+        config({ categoryId: 'random', excludedCategories: excluded, customInRandom: false }),
+        src,
+        seedFromNumber(seed),
+      );
+      if (!res.ok) throw new Error(res.errors.join());
+      expect(excluded).not.toContain(res.setup.word.categoryId);
+      expect(res.setup.word.categoryId).not.toBe('custom:friends');
+    }
+  });
+
+  it('Mixed only pools enabled topics, and includes custom categories when asked', () => {
+    const only = BUILT_IN_CATEGORY_IDS.filter((id) => id !== 'food');
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 300; seed++) {
+      const res = createRoundSetup(
+        makePlayers(4),
+        config({ categoryId: 'mixed', excludedCategories: only, customInRandom: true }),
+        src,
+        seedFromNumber(seed),
+      );
+      if (!res.ok) throw new Error(res.errors.join());
+      seen.add(res.setup.word.categoryId);
+    }
+    expect(seen).toEqual(new Set(['food', 'custom:friends']));
+  });
+
+  it('switching everything off gives a clear error instead of crashing', () => {
+    const cfg = config({ categoryId: 'random', excludedCategories: [...BUILT_IN_CATEGORY_IDS], customInRandom: false });
+    expect(validateSetup(makePlayers(4), cfg, src)).toContain('noCategoriesEnabled');
+    const res = createRoundSetup(makePlayers(4), cfg, src, seedFromNumber(1));
+    expect(res.ok).toBe(false);
+    // Picking a category directly still works even if it is switched off for Random.
+    expect(createRoundSetup(makePlayers(4), { ...cfg, categoryId: 'food' }, src, seedFromNumber(1)).ok).toBe(true);
+  });
+
+  it('presets: Everyday keeps everyday + India topics and drops cinema/pop', () => {
+    const excluded = presetExclusions('everyday');
+    expect(excluded).toEqual(expect.arrayContaining(['movies', 'cricket', 'sports', 'tamil_movies']));
+    expect(excluded).not.toContain('food');
+    expect(excluded).not.toContain('tamil_nadu');
+    expect(presetExclusions('all')).toEqual([]);
+    expect(presetExclusions('tamil')).not.toContain('tamil_movies');
+    expect(presetExclusions('tamil')).toContain('telugu_cinema');
+  });
+
+  it('sanitises stored toggles', () => {
+    const cfg = sanitizeConfig({ excludedCategories: ['food', 'food', 7, null], customInRandom: 'yes' });
+    expect(cfg.excludedCategories).toEqual(['food']);
+    expect(cfg.customInRandom).toBe(DEFAULT_GAME_CONFIG.customInRandom);
   });
 });

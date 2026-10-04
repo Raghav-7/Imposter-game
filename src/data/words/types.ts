@@ -37,7 +37,12 @@ export type BuiltInCategoryId =
   | 'indian_food'
   | 'indian_cities'
   | 'countries'
-  | 'internet_memes';
+  | 'internet_memes'
+  | 'tamil_nadu'
+  | 'tamil_movies'
+  | 'tamil_celebrities'
+  | 'telugu_cinema'
+  | 'malayalam_cinema';
 
 /** A fully-resolved word with its category attached. */
 export interface WordEntry {

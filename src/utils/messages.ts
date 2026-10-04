@@ -11,6 +11,8 @@ export function setupIssueMessage(issue: SetupIssue | RoundSetupError, t: TFunct
       return t('config.error.categoryEmpty');
     case 'categoryMissing':
       return t('config.error.categoryMissing');
+    case 'noCategoriesEnabled':
+      return t('config.error.noCategories');
     case 'needsTwoWords':
       return t('config.error.needsTwoWords');
     default:

@@ -5,22 +5,42 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { AppText } from '../../components/AppText';
 import { Button } from '../../components/Button';
-import { Card, SectionTitle } from '../../components/controls';
+import { Card, SectionTitle, ToggleRow } from '../../components/controls';
 import { ImportSheet } from '../../components/ImportSheet';
 import { toast } from '../../components/Overlay';
 import { Screen } from '../../components/Screen';
-import { BUILT_IN_CATEGORIES, WORD_BANK } from '../../data/words';
+import {
+  BUILT_IN_CATEGORIES,
+  CATEGORY_GROUPS,
+  type CategoryPreset,
+  presetExclusions,
+  WORD_BANK,
+} from '../../data/words';
+import { haptic } from '../../haptics';
 import { useT } from '../../localization';
-import { useCustomCategories } from '../../state/appData';
+import { updateGameConfig, useCustomCategories, useGameConfig } from '../../state/appData';
 import { buildBackup } from '../../state/backup';
 import { RADIUS, SPACE, usePalette } from '../../theme';
 import { safeBack } from '../../utils/navigation';
+
+const PRESETS: readonly CategoryPreset[] = ['all', 'everyday', 'tamil', 'pop'];
 
 export default function CategoriesScreen() {
   const t = useT();
   const p = usePalette();
   const custom = useCustomCategories();
   const [importing, setImporting] = useState(false);
+  const config = useGameConfig();
+  const excluded = new Set(config.excludedCategories);
+  const enabledCount = BUILT_IN_CATEGORIES.filter((c) => !excluded.has(c.id)).length;
+
+  /** Switch a topic on/off for Random & Mixed. */
+  const toggle = (id: string, on: boolean) => {
+    const next = new Set(config.excludedCategories);
+    if (on) next.delete(id);
+    else next.add(id);
+    updateGameConfig({ excludedCategories: [...next] });
+  };
 
   const exportCategories = async () => {
     try {
@@ -97,20 +117,64 @@ export default function CategoriesScreen() {
         />
       </View>
 
-      <SectionTitle hint={t('categories.subtitle')}>{t('category.builtIn')}</SectionTitle>
-      <Card style={styles.builtIn}>
-        {BUILT_IN_CATEGORIES.map((c) => (
-          <View key={c.id} style={styles.builtInRow}>
-            <AppText style={styles.emojiSmall}>{c.emoji}</AppText>
-            <AppText variant="body" style={styles.flex} numberOfLines={1}>
-              {t(`category.${c.id}`)}
+      {custom.length > 0 ? (
+        <Card style={[styles.builtIn, styles.gapTop]}>
+          <ToggleRow
+            icon="🎲"
+            label={t('categories.customInRandom')}
+            value={config.customInRandom}
+            onChange={(v) => updateGameConfig({ customInRandom: v })}
+          />
+        </Card>
+      ) : null}
+
+      <SectionTitle hint={t('categories.poolHint')}>{t('categories.poolTitle')}</SectionTitle>
+      <View style={styles.presetRow} accessibilityLabel={t('categories.presets')}>
+        {PRESETS.map((preset) => (
+          <Pressable
+            key={preset}
+            onPress={() => {
+              haptic('select');
+              updateGameConfig({ excludedCategories: presetExclusions(preset) });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('categories.presets')}: ${t(`categories.preset.${preset}`)}`}
+            testID={`preset-${preset}`}
+            style={({ pressed }) => [
+              styles.preset,
+              { borderColor: p.primary, backgroundColor: pressed ? p.primarySoft : 'transparent' },
+            ]}
+          >
+            <AppText variant="bodyStrong" tone="primary">
+              {t(`categories.preset.${preset}`)}
             </AppText>
-            <AppText variant="caption" tone="muted">
-              {t('category.words_other', { count: WORD_BANK[c.id]?.length ?? 0 })}
-            </AppText>
-          </View>
+          </Pressable>
         ))}
-      </Card>
+      </View>
+      <AppText variant="caption" tone="muted" style={styles.count} accessibilityLiveRegion="polite">
+        {t('categories.poolCount', { on: enabledCount, total: BUILT_IN_CATEGORIES.length })} ·{' '}
+        {t('categories.subtitle')}
+      </AppText>
+
+      {CATEGORY_GROUPS.map((group) => (
+        <View key={group}>
+          <AppText variant="label" tone="faint" style={styles.groupTitle} accessibilityRole="header">
+            {t(`group.${group}`)}
+          </AppText>
+          <Card style={styles.builtIn}>
+            {BUILT_IN_CATEGORIES.filter((c) => c.group === group).map((c) => (
+              <ToggleRow
+                key={c.id}
+                icon={c.emoji}
+                label={t(`category.${c.id}`)}
+                hint={t('category.words_other', { count: WORD_BANK[c.id]?.length ?? 0 })}
+                value={!excluded.has(c.id)}
+                onChange={(on) => toggle(c.id, on)}
+              />
+            ))}
+          </Card>
+        </View>
+      ))}
 
       {importing ? <ImportSheet onClose={() => setImporting(false)} includePlayersAndSettings={false} /> : null}
     </Screen>
@@ -130,10 +194,19 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
   emoji: { fontSize: 26, lineHeight: 32 },
-  emojiSmall: { fontSize: 20, lineHeight: 26, width: 28 },
   newBtn: { marginTop: SPACE.md },
   tools: { flexDirection: 'row', gap: SPACE.sm, marginTop: SPACE.sm },
-  builtIn: { paddingVertical: SPACE.xs, gap: 2 },
-  builtInRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, minHeight: 40 },
+  builtIn: { paddingVertical: SPACE.xs, paddingHorizontal: SPACE.xs },
+  gapTop: { marginTop: SPACE.md },
+  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm },
+  preset: {
+    borderWidth: 1.5,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACE.lg,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  count: { marginTop: SPACE.sm },
+  groupTitle: { marginTop: SPACE.lg, marginBottom: SPACE.xs },
   flex: { flex: 1 },
 });

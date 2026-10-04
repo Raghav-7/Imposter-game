@@ -45,7 +45,12 @@ function nodes(xml) {
 }
 
 function decode(s) {
-  return (s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  return (s || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
 }
 
 function find(xml, { id, text, contains }) {
@@ -116,7 +121,11 @@ async function revealAll(roles, opts = {}) {
     await tap({ id: 'reveal-gate-ready' }, 900);
     const { xml: cardXml } = await waitFor({ id: 'role-title' });
     const title = decode(find(cardXml, { id: 'role-title' }).text);
-    roles[decode(name).replace(/^I'm /, '').replace(/ — show me$/, '')] = title;
+    roles[
+      decode(name)
+        .replace(/^I'm /, '')
+        .replace(/ — show me$/, '')
+    ] = title;
     if (opts.onCard) await opts.onCard(i, title);
     await sleep(800);
     await tap({ id: 'reveal-hide' }, 900);
@@ -144,7 +153,12 @@ const scenarios = {
     await launch();
     let xml = dump();
     const leakAfterBackground = !!find(xml, { id: 'role-card' });
-    log('after background → card visible?', leakAfterBackground, '| gate visible?', !!find(xml, { id: 'reveal-gate-ready' }));
+    log(
+      'after background → card visible?',
+      leakAfterBackground,
+      '| gate visible?',
+      !!find(xml, { id: 'reveal-gate-ready' }),
+    );
     await shot('after-background');
 
     // Reveal again, then kill the app while the card is visible.
@@ -155,7 +169,12 @@ const scenarios = {
     await sleep(1000);
     await launch();
     xml = dump();
-    log('after kill → resume dialog?', texts(xml).includes('Resume game?'), '| card visible?', !!find(xml, { id: 'role-card' }));
+    log(
+      'after kill → resume dialog?',
+      texts(xml).includes('Resume game?'),
+      '| card visible?',
+      !!find(xml, { id: 'role-card' }),
+    );
     await shot('resume-dialog');
     await tap({ text: 'Resume' }, 1800);
     xml = dump();

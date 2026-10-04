@@ -25,7 +25,7 @@ export function createRoundSetup(
 
   const rng = createRng(seed);
   const mode = MODES[config.mode];
-  const pool = resolveCategoryPool(config.categoryId, source);
+  const pool = resolveCategoryPool(config.categoryId, source, config);
   const altPossible = pool !== null && (pool.hasRelated || pool.words.length >= 2);
 
   const modifiers = mode.usesModifiers ? rollModifiers(rng, players.length, config, altPossible) : [];

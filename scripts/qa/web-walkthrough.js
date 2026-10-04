@@ -24,13 +24,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     args: ['--no-sandbox', '--force-prefers-reduced-motion=0'],
   });
   const page = await browser.newPage();
-  await page.setViewport({ width: +W, height: +H, deviceScaleFactor: +(process.env.DPR || 1), isMobile: true, hasTouch: false });
+  await page.setViewport({
+    width: +W,
+    height: +H,
+    deviceScaleFactor: +(process.env.DPR || 1),
+    isMobile: true,
+    hasTouch: false,
+  });
   const errors = [];
   page.on('console', (m) => {
     if (m.type() === 'error' || m.type() === 'warning') errors.push(`[${m.type()}] ${m.text().slice(0, 300)}`);
   });
   page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
-  if (process.env.SCHEME) await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: process.env.SCHEME }]);
+  if (process.env.SCHEME)
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: process.env.SCHEME }]);
 
   let n = 0;
   const shot = async (name, full = false) => {
@@ -54,7 +61,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
           return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1);
         })
         .slice(0, 5)
-        .map((e) => `${e.tagName}:${(e.textContent || '').slice(0, 30)}:${Math.round(e.getBoundingClientRect().right)}`),
+        .map(
+          (e) => `${e.tagName}:${(e.textContent || '').slice(0, 30)}:${Math.round(e.getBoundingClientRect().right)}`,
+        ),
     );
     if (bad.length) errors.push(`[overflow ${name}] ${bad.join(' | ')}`);
   };
@@ -115,7 +124,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(1600);
   for (let i = 0; i < 25; i++) {
     if (!(await exists('reveal-gate'))) break;
-    const name = await page.$eval('[data-testid="reveal-gate"] [role="heading"]', (e) => e.textContent).catch(() => `p${i}`);
+    const name = await page
+      .$eval('[data-testid="reveal-gate"] [role="heading"]', (e) => e.textContent)
+      .catch(() => `p${i}`);
     if (i === 0) await shot('reveal-gate');
     await sleep(800); // arm delay
     await tap('reveal-gate-ready', 900);
@@ -152,7 +163,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await tap('vote-gate-ready', 700);
     const voter = await page.$eval('[role="heading"]', (e) => e.textContent).catch(() => '');
     let pick = `vote-target-${target}`;
-    if (!(await exists(pick))) pick = (await page.$$eval('[data-testid^="vote-target-"]', (els) => els.map((e) => e.dataset.testid)))[0];
+    if (!(await exists(pick)))
+      pick = (await page.$$eval('[data-testid^="vote-target-"]', (els) => els.map((e) => e.dataset.testid)))[0];
     await tap(pick, 300);
     if (v === 0) await shot('ballot');
     await overflow('ballot');
