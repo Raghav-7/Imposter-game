@@ -6,7 +6,7 @@ Everyone secretly gets the same word — except the Imposter. Pass the phone, pe
 
 - 100% offline — no account, no internet, no ads, no tracking, **no permissions**
 - Android first (also runs on iOS and web via Expo)
-- 1,246 hand-checked words in 23 categories (incl. Indian Food, Bollywood, Cricket, Indian Cities), every word with Undercover pairs
+- 1,268 hand-checked words in 23 categories (incl. Indian Food, Bollywood, Cricket, Indian Cities), every word with Undercover pairs
 - English + Hindi UI
 
 ---
@@ -87,7 +87,7 @@ npm run verify    # typecheck + lint + format check + tests
 
 | Layer | How it is tested |
 | --- | --- |
-| Word bank | `tests/data` — validator over all 1,246 words |
+| Word bank | `tests/data` — validator over all 1,268 words |
 | Game engine | `tests/engine` — unit tests for every rule, end-to-end rounds (3p/1i, imposter survives, caught + correct/incorrect guess, 10p/2i, 15p/3i, undercover, tie, revote, custom category, jester), fast-check property tests, **1,500 random full-game simulations**, 2,000-round randomness/χ² checks |
 | State & persistence | `tests/state` — stats correctness and idempotency, corrupted-data recovery, storage failures, kill-and-resume, backup import/export, log redaction |
 | UI | `tests/ui` — the real Expo Router app rendered with Testing Library: full game by button presses, background/back-button secret hiding, timer behaviour, validation, custom categories |
