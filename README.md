@@ -59,8 +59,10 @@ Requirements: Node 20+ (tested with Node 24), and for native builds JDK 17+ and 
 ### Release build (exact command)
 
 ```bash
-CMAKE_DIR=C:/ImposterGame/.tools/cmake npm run build:android
+npm run build:android
 ```
+
+On Windows the script uses CMake from `CMAKE_DIR`, or from a `.tools/cmake` folder next to the project if that exists (e.g. `D:/ImposterGame/.tools/cmake` for `D:/ImposterGame/imposter-party`).
 
 `scripts/build-android.js` runs `expo prebuild --platform android --clean`, writes `android/local.properties`, loads signing values from `credentials/signing.properties`, and runs `gradlew assembleRelease` (R8 minify + resource shrinking on, ABIs arm64-v8a / armeabi-v7a / x86_64).
 
@@ -71,7 +73,7 @@ CMAKE_DIR=C:/ImposterGame/.tools/cmake npm run build:android
 Release builds are signed by `plugins/withReleaseSigning.js` using these variables (Gradle properties or environment):
 
 ```
-IMPOSTER_STORE_FILE=/abs/path/imposter-release.jks
+IMPOSTER_STORE_FILE=credentials/imposter-release.jks   # relative to the project, or an absolute path
 IMPOSTER_STORE_PASSWORD=…
 IMPOSTER_KEY_ALIAS=imposter
 IMPOSTER_KEY_PASSWORD=…
@@ -181,7 +183,7 @@ See `src/game/roles/index.ts` and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#ad
 
 | Problem | Fix |
 | --- | --- |
-| `Filename longer than 260 characters` during `buildCMake…` on Windows | Use CMake ≥ 3.31 + Ninja ≥ 1.12 via `CMAKE_DIR`, and keep the project in a short path (e.g. `C:\ImposterGame\imposter-party`). |
+| `Filename longer than 260 characters` during `buildCMake…` on Windows | Use CMake ≥ 3.31 + Ninja ≥ 1.12 via `CMAKE_DIR`, and keep the project in a short path (e.g. `D:\ImposterGame\imposter-party`). |
 | `'gradlew.bat' is not recognized` | Run through `npm run build:android` (it calls the wrapper with an absolute path). |
 | Release APK signed with debug key | `credentials/signing.properties` missing — see *Release signing*. |
 | "Resume game?" keeps appearing | Choose **Abandon game** — the save is deleted. |
