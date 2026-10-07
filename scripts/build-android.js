@@ -33,6 +33,14 @@ if (fs.existsSync(signing)) {
     const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*)\s*$/);
     if (m) env[m[1]] = m[2];
   }
+  // A relative keystore path is resolved from the project root, so the folder can move drives.
+  if (env.IMPOSTER_STORE_FILE && !path.isAbsolute(env.IMPOSTER_STORE_FILE)) {
+    env.IMPOSTER_STORE_FILE = path.join(root, env.IMPOSTER_STORE_FILE).replace(/\\/g, '/');
+  }
+  if (env.IMPOSTER_STORE_FILE && !fs.existsSync(env.IMPOSTER_STORE_FILE)) {
+    console.error(`Keystore not found: ${env.IMPOSTER_STORE_FILE} (check credentials/signing.properties).`);
+    process.exit(1);
+  }
   console.log('Using release keystore from credentials/signing.properties');
 } else {
   console.warn('credentials/signing.properties missing — the APK will be signed with the debug key.');
@@ -46,8 +54,9 @@ const run = (cmd, cwd = root) => {
 if (!skipPrebuild) run('npx expo prebuild --platform android --clean --no-install');
 // Optional newer CMake/Ninja (CMAKE_DIR). On Windows the SDK's CMake 3.22 ships a Ninja
 // that is not long-path aware, which breaks New Architecture codegen builds.
+// Falls back to a `.tools/cmake` folder next to the project when CMAKE_DIR isn't set.
 let localProps = `sdk.dir=${sdk.replace(/\\/g, '/')}\n`;
-const cmakeDir = process.env.CMAKE_DIR;
+const cmakeDir = process.env.CMAKE_DIR || path.join(root, '..', '.tools', 'cmake');
 if (cmakeDir && fs.existsSync(cmakeDir)) {
   localProps += `cmake.dir=${cmakeDir.replace(/\\/g, '/')}\n`;
   console.log(`Using CMake from ${cmakeDir}`);
