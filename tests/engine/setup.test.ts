@@ -196,8 +196,8 @@ describe('word selection', () => {
 });
 
 describe('modes', () => {
-  it('classic: imposter gets no word but sees the category; civilians see the word', () => {
-    const s = startGame(makePlayers(5), config({ mode: 'classic', categoryId: 'food' }));
+  it('classic with the hint on: imposter gets no word but sees the category; civilians see the word', () => {
+    const s = startGame(makePlayers(5), config({ mode: 'classic', categoryId: 'food', imposterHint: true }));
     const [imp] = idsWithRole(s, 'imposter');
     const view = getSecretView(s, imp!)!;
     expect(view.word).toBeNull();
@@ -206,8 +206,10 @@ describe('modes', () => {
     for (const id of idsWithRole(s, 'civilian')) expect(getSecretView(s, id)!.word).toBe(s.round!.setup.word.word);
   });
 
-  it('blind: imposter sees nothing at all', () => {
-    const s = startGame(makePlayers(5), config({ mode: 'blind' }));
+  it('Blind is gone: saved Blind settings become Classic with no hint (same game as before)', () => {
+    const migrated = sanitizeConfig({ ...DEFAULT_GAME_CONFIG, mode: 'blind', imposterHint: true });
+    expect(migrated).toMatchObject({ mode: 'classic', imposterHint: false });
+    const s = startGame(makePlayers(5), config({ ...migrated, playStyle: 'full', voting: true }));
     const view = getSecretView(s, idsWithRole(s, 'imposter')[0]!)!;
     expect(view.word).toBeNull();
     expect(view.categoryHint).toBeNull();
@@ -223,7 +225,12 @@ describe('modes', () => {
   it('imposter hint off: chaos never rolls the "imposter knows the category" twist', () => {
     let rolledWithHint = false;
     for (let seed = 1; seed < 300; seed++) {
-      const on = createRoundSetup(makePlayers(6), config({ mode: 'chaos' }), builtInSource(), seedFromNumber(seed));
+      const on = createRoundSetup(
+        makePlayers(6),
+        config({ mode: 'chaos', imposterHint: true }),
+        builtInSource(),
+        seedFromNumber(seed),
+      );
       if (on.ok && on.setup.modifiers.includes('imposterCategory')) rolledWithHint = true;
       const s = startGame(makePlayers(6), config({ mode: 'chaos', imposterHint: false }), seed);
       expect(s.round!.setup.modifiers).not.toContain('imposterCategory');
@@ -232,10 +239,11 @@ describe('modes', () => {
     expect(rolledWithHint).toBe(true);
   });
 
-  it('imposter hint defaults on and old saved settings without it stay on', () => {
-    expect(DEFAULT_GAME_CONFIG.imposterHint).toBe(true);
+  it('imposter hint defaults off; a saved choice is kept either way', () => {
+    expect(DEFAULT_GAME_CONFIG.imposterHint).toBe(false);
     const { imposterHint: _, ...old } = DEFAULT_GAME_CONFIG;
-    expect(sanitizeConfig(old).imposterHint).toBe(true);
+    expect(sanitizeConfig(old).imposterHint).toBe(false);
+    expect(sanitizeConfig({ ...old, imposterHint: true }).imposterHint).toBe(true);
     expect(sanitizeConfig({ ...old, imposterHint: false }).imposterHint).toBe(false);
   });
 

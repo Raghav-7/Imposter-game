@@ -8,6 +8,7 @@ import { Card, ListRow, SectionTitle, Segmented, ToggleRow } from '../components
 import { ImportSheet } from '../components/ImportSheet';
 import { confirm, toast } from '../components/Overlay';
 import { Screen } from '../components/Screen';
+import { defaultVotingFor } from '../game/engine/config';
 import { LANGUAGE_NAMES, useT } from '../localization';
 import { updateGameConfig, useGameConfig } from '../state/appData';
 import { buildBackup } from '../state/backup';
@@ -54,7 +55,8 @@ export default function SettingsScreen() {
         <Segmented
           label={t('settings.playStyle')}
           value={game.playStyle}
-          onChange={(v) => updateGameConfig({ playStyle: v })}
+          // Each style starts with its usual voting (Full game votes on the phone); Game settings can change it.
+          onChange={(v) => updateGameConfig({ playStyle: v, voting: defaultVotingFor(v) })}
           options={[
             { value: 'simple', label: t('settings.playStyle.simple') },
             { value: 'full', label: t('settings.playStyle.full') },

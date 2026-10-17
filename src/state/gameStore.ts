@@ -91,7 +91,16 @@ export function useGameState(): GameState {
 
 export type StartResult = { ok: true } | { ok: false; errors: RoundSetupError[] };
 
-export function startNewGame(players: Player[], config: GameConfig, source: WordSource): StartResult {
+/**
+ * Deals a new game. The config becomes the group's saved preference unless `remember` is false
+ * (Quick Play uses its own defaults and must not overwrite the group's Game settings).
+ */
+export function startNewGame(
+  players: Player[],
+  config: GameConfig,
+  source: WordSource,
+  { remember = true }: { remember?: boolean } = {},
+): StartResult {
   if (isInGame(state.phase) && state.phase !== 'GAME_COMPLETE') dispatch({ type: 'EXIT_GAME' });
   const res = createRoundSetup(players, config, source, randomSeed(), recentWordsStore.get());
   if (!res.ok) return res;
@@ -104,7 +113,7 @@ export function startNewGame(players: Player[], config: GameConfig, source: Word
     sessionId: randomId('s_'),
   });
   if (next.phase !== 'WORD_GENERATED') return { ok: false, errors: ['tooFewPlayers'] };
-  configStore.set(config);
+  if (remember) configStore.set(config);
   return { ok: true };
 }
 

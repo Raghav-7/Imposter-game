@@ -15,19 +15,23 @@ Everyone secretly gets the same word — except the Imposter. Pass the phone, pe
 
 | Area | What you get |
 | --- | --- |
-| **Play styles** | **Words only** (default): the phone deals the secret words, says who starts and whether to go clockwise or anticlockwise, then you put it down — clues, discussion and voting happen out loud — and press-and-hold to see who the Imposter was. **Full game** (Settings → How you play): clues, timers, secret voting, final guess and scores on the phone. |
-| **Modes** | **Classic** (imposter sees only the category) · **Undercover** (odd one out gets a similar word — Pizza vs Burger) · **Blind** (imposter gets nothing) · **Chaos** (1–2 random twists per round) |
+| **Play styles** | **Words only** (default): the phone deals the secret words, says who starts and whether to go clockwise or anticlockwise, then you put it down — clues and discussion happen out loud — and press-and-hold to see who the Imposter was. **Full game** (Settings → How you play): clues, timers, secret voting, final guess and scores on the phone. |
+| **Voting** | **Voting On/Off** in Game settings, in either play style (Words only starts Off, Full game starts On). On: pass-the-phone secret ballot with an intro, progress, change your pick, lock in, optional **abstain**, no early results, then every candidate's votes. Off: the group decides out loud and holds for the answer. Tie rule, abstaining and the final guess live under a collapsed **Voting options**. |
+| **Several imposters** | Before a vote the group picks **how many to vote out at once** (default: all remaining, so one vote usually settles it); each ballot then asks for exactly that many names. **Caught someone out loud?** reveals players the group agreed on without a phone vote, and the rest go to the phone vote. Everyone caught in the same vote gets their own final guess. |
+| **Modes** | **Classic** (the Imposter gets no word; with the **Imposter hint** on, which is off by default, they see the category) · **Undercover** (odd one out gets a similar word, Pizza vs Burger) · **Lost** (the Imposter gets a word from another topic and doesn't know it) · **Questions** (everyone answers a question; the Imposter's is slightly different and they don't know it; 114 built-in question pairs) · **Chaos** (1–2 random twists per round). Blind was removed in 1.4.0: it was Classic with the hint off, and saved Blind settings become exactly that. |
 | **Multiple imposters** | 1–3 in any mode, auto-limited by player count (5+ players → 2, 7+ → 3). Optional "imposters know each other". |
 | **Special roles** | Optional **Detective** (learns one innocent player) and **Jester** (wins if voted out). Chaos can add a **Secret Agent** (knows one of two suspects is guilty) and a second secret word. |
 | **Chaos twists** | Short clues · first clue one word · no repeating ideas · no physical descriptions · last player sound/gesture only · 10-second speed round · scrambled order · secret agent · imposter gets the category · two words in play |
 | **Players** | Add / rename / remove / reorder / shuffle / quick-add, duplicate & blank name validation, emoji & Unicode names, saved between games |
-| **Words** | 28 built-in categories in four groups + Random + Mixed, Easy/Medium/Hard, per-topic on/off switches and quick presets (All · Everyday · Tamil special · Movies & pop) for what Random/Mixed draw from, recently-used words avoided, custom categories (create, rename, delete, paste many words at once, import/export as text) |
+| **Words** | 28 built-in categories in four groups + Random + Mixed, Easy/Medium/Hard, one topic picker (Game settings → Category, also linked from the Categories screen) with quick presets (All · Everyday · Tamil special · Movies & pop) for what each round draws from, recently-used words avoided, custom categories (create, rename, delete, paste many words at once, import/export as text) |
 | **Private reveal** | Pass-the-phone gate per player, tap *or* hold-to-reveal, identical-looking cards for every role, armed buttons so a double tap can't reveal the next card, screenshot/recents blocking, auto-hide when the app is backgrounded |
 | **Round flow** | Clue phase (optional 15–60 s per clue, re-run laps) → discussion timer (30 s–2 min or unlimited, pause/resume/+30 s) → secret ballot (pass the phone, change pick, lock in, progress dots, no early results) → dramatic tally → role reveal → final guess (multiple choice or typed with typo tolerance + "close enough" override) → winner → scoreboard → next round |
-| **Ties** | Revote between tied players (default) or random pick; a tied revote is broken randomly so games never loop |
+| **Ties** | Revote between tied players (default) or random pick; with several places, the clear winners are out and only the players tied for the last place(s) revote for what is left. A tied revote is broken randomly (only among the tied), so games never loop. If everyone abstains, nobody is out and that vote is used up |
+| **Secret word** | Shown in Title Case with a larger initial on every word ("Ice Cream"), fitted to the screen width so long words wrap instead of clipping; acronyms and deliberate casing ("KFC", "iPhone", "MS Dhoni") are kept; display only — the stored word never changes |
 | **Scoring & stats** | Configurable points; per-player lifetime stats (games, wins, losses, win rate, imposter games/wins, times caught, successful guesses, streaks, points) — only real results, idempotent recording |
 | **Resilience** | Auto-save after every step (obfuscated), resume/abandon prompt after a crash or kill, corrupted data falls back to defaults, back button never leaks secrets |
 | **Feel** | Original dark "midnight masquerade" theme + light + system, custom display font, animations that respect reduced motion, synthesized sound effects + optional music, haptics — all toggleable |
+| **Typing** | Text fields stay above the on-screen keyboard (edge-to-edge Android 15 included): player names, category editor, import, typed final guess |
 | **Accessibility** | 48 dp touch targets, screen-reader labels/roles, dynamic type with capped display sizes, colour never the only signal, reduced-motion support |
 
 ## Quick start
@@ -68,6 +72,12 @@ On Windows the script uses CMake from `CMAKE_DIR`, or from a `.tools/cmake` fold
 
 **Windows note:** the Android SDK's CMake 3.22 ships a Ninja that is not long-path aware, and React Native's New Architecture codegen produces object paths > 260 characters. Point `CMAKE_DIR` at CMake ≥ 3.31 with Ninja ≥ 1.12 (official zips from Kitware / ninja-build) and enable Windows long paths. Not needed on macOS/Linux.
 
+### Versioning and updates
+
+Before every release raise `expo.version` and `expo.android.versionCode` (and `ios.buildNumber`) in `app.json`. Android installs a new APK over an existing one — keeping players, settings, stats and custom categories — only when the package name (`com.imposterparty.game`) and signing key are the same and the versionCode is higher. `npm run build:android` checks the built APK's real version against `app.json`, refuses a stale `android/` folder with `--no-prebuild`, and prints the signer's SHA-256 (the release key's is `ad40f8a81803feeb1fdc663de8f1773a6361c5bcaf14e05e8fd7a4e36fc95c8e`).
+
+Distribution is by APK (plus an AAB for a Play listing). Release builds have no network access, so the app cannot check for updates itself: share the new APK, or upload the AAB to the existing Play listing, and install it over the old one.
+
 ### Release signing
 
 Release builds are signed by `plugins/withReleaseSigning.js` using these variables (Gradle properties or environment):
@@ -84,7 +94,7 @@ IMPOSTER_KEY_PASSWORD=…
 ## Testing
 
 ```bash
-npm test          # 144 tests across 9 suites
+npm test          # 261 tests across 14 suites
 npm run verify    # typecheck + lint + format check + tests
 ```
 
@@ -158,13 +168,13 @@ Edit `src/data/words/categories/<category>.ts`:
 3. Add `category.my_category` to `src/localization/en.ts` (and `hi.ts`).
 4. `npm run check:words` (fast) or `npm run validate:words` (Jest).
 
-Players choose which topics Random and Mixed use under **Categories → Topics for Random & Mixed** (stored as `excludedCategories` / `customInRandom` in the game config). Picking a category directly always works, even if it is switched off for Random.
+Players choose which topics each round draws from in the topic picker (**Game settings → Category**, also reachable from **Categories → Choose topics**), stored as `categoryId` / `excludedCategories` / `customInRandom` in the game config. There is deliberately only one topic selector.
 
 Players can also create categories in-app (Categories → New category).
 
 ## Adding a game mode
 
-1. Add the id to `GameModeId` (`src/game/types.ts`) and a `ModeDefinition` in `src/game/modes/index.ts` (hunted role, whether imposters see the category, whether an alt word is needed, whether chaos modifiers roll).
+1. Add the id to `GameModeId` (`src/game/types.ts`) and a `ModeDefinition` in `src/game/modes/index.ts` (hunted role, whether imposters see the category, what the odd one out gets instead (`oddContent`: nothing, a related word, a word from another topic, or a question), whether chaos modifiers roll).
 2. If it needs new behaviour, extend `createRoundSetup` (`src/game/engine/setup.ts`) and/or `getSecretView` (`engine/secrets.ts`) — driven by the mode flags.
 3. Add `mode.<id>.name/desc` strings and a Rules section; add it to `MODE_ORDER`.
 4. Add engine tests (the property tests in `tests/engine/properties.test.ts` automatically cover every mode in `MODE_ORDER`).

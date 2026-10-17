@@ -13,14 +13,20 @@ export const TRANSITIONS: Readonly<Record<Phase, readonly Phase[]>> = {
   ROLE_REVEAL_INTRO: ['ROLE_REVEAL', 'IDLE'],
   // ROLE_REVEAL → ROLE_REVEAL_INTRO covers both "next player" and "hide again" (background/back).
   ROLE_REVEAL: ['ROLE_REVEAL_INTRO', 'REVEAL_COMPLETE', 'IDLE'],
-  REVEAL_COMPLETE: ['CLUE_PHASE', 'ANSWER', 'IDLE'],
+  // Words-only style talks out loud on REVEAL_COMPLETE, then votes (voting on) or shows the answer.
+  REVEAL_COMPLETE: ['CLUE_PHASE', 'ANSWER', 'VOTING', 'ELIMINATION', 'IDLE'],
   CLUE_PHASE: ['CLUE_PHASE', 'DISCUSSION', 'IDLE'],
-  DISCUSSION: ['VOTING', 'IDLE'],
+  // Full game with voting off ends on the answer screen instead of a vote; ELIMINATION = decided
+  // out loud (also from REVEAL_COMPLETE).
+  DISCUSSION: ['VOTING', 'ANSWER', 'ELIMINATION', 'IDLE'],
   VOTING: ['VOTING', 'VOTE_RESULT', 'IDLE'],
-  VOTE_RESULT: ['VOTING', 'ELIMINATION', 'IDLE'],
-  ELIMINATION: ['IMPOSTER_GUESS', 'ROUND_RESULT', 'CLUE_PHASE', 'DISCUSSION', 'IDLE'],
-  IMPOSTER_GUESS: ['IMPOSTER_GUESS', 'ROUND_RESULT', 'CLUE_PHASE', 'DISCUSSION', 'IDLE'],
-  ROUND_RESULT: ['SCOREBOARD', 'IDLE'],
+  // A vote with nobody out (everyone abstained) goes straight to the result or the next hunt step.
+  VOTE_RESULT: ['VOTING', 'ELIMINATION', 'ROUND_RESULT', 'CLUE_PHASE', 'DISCUSSION', 'REVEAL_COMPLETE', 'IDLE'],
+  // REVEAL_COMPLETE = the words-only hunt continues out loud.
+  ELIMINATION: ['IMPOSTER_GUESS', 'ROUND_RESULT', 'CLUE_PHASE', 'DISCUSSION', 'REVEAL_COMPLETE', 'IDLE'],
+  IMPOSTER_GUESS: ['IMPOSTER_GUESS', 'ROUND_RESULT', 'CLUE_PHASE', 'DISCUSSION', 'REVEAL_COMPLETE', 'IDLE'],
+  // Words only has no scoreboard: the next round starts from the result.
+  ROUND_RESULT: ['SCOREBOARD', 'WORD_GENERATED', 'IDLE'],
   SCOREBOARD: ['WORD_GENERATED', 'GAME_COMPLETE', 'IDLE'],
   GAME_COMPLETE: ['IDLE', 'WORD_GENERATED'],
   ANSWER: ['WORD_GENERATED', 'IDLE'],

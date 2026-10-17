@@ -222,7 +222,7 @@ describe('end-to-end rounds (engine)', () => {
     expect(s.round!.voting!.candidates.sort()).toEqual([a, b].sort());
     expect(s.round!.voting!.voters).toHaveLength(4);
     s = voteAll(s, (voter, targets) => (targets.includes(a) ? a : targets[0]!));
-    expect(s.round!.lastVote!.eliminated).toBe(a);
+    expect(s.round!.lastVote!.eliminated).toEqual([a]);
   });
 
   it('a tie on the revote is broken randomly (never loops)', () => {
@@ -233,7 +233,8 @@ describe('end-to-end rounds (engine)', () => {
     s = apply(s, { type: 'START_REVOTE' });
     s = voteAll(s, (voter) => plan[voter]!);
     expect(s.round!.lastVote!.tieBrokenRandomly).toBe(true);
-    expect([a, b]).toContain(s.round!.lastVote!.eliminated);
+    expect(s.round!.lastVote!.eliminated).toHaveLength(1);
+    expect([a, b]).toContain(s.round!.lastVote!.eliminated[0]);
   });
 
   it('random tie rule eliminates immediately', () => {
@@ -315,7 +316,7 @@ describe('end-to-end rounds (engine)', () => {
 });
 
 describe('words-only play style (default)', () => {
-  const simple = (overrides = {}) => config({ playStyle: 'simple', ...overrides });
+  const simple = (overrides = {}) => config({ playStyle: 'simple', voting: false, ...overrides });
 
   const revealAll = (s: GameState) => {
     let st = apply(s, { type: 'BEGIN_REVEAL' });

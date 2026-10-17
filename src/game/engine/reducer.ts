@@ -1,9 +1,9 @@
 import { isHunted } from '../roles';
 import { scoreRound } from '../scoring';
 import type { GameConfig, GameState, Phase, Player, PlayerId, RoundSetup, RoundState } from '../types';
-import { allVotesIn, castVote, resolveVote, startVoting } from '../voting';
-import { DEFAULT_GAME_CONFIG } from './config';
-import { getNextStep } from './outcome';
+import { ABSTAIN, allVotesIn, castVote, resolveVote, startVoting } from '../voting';
+import { DEFAULT_GAME_CONFIG, keepsScore } from './config';
+import { getNextStep, maxVoteOut } from './outcome';
 import type { Seed } from './rng';
 import { canTransition, safeRestorePhase } from './stateMachine';
 import { cleanText, isGuessCorrect } from './text';
@@ -30,8 +30,12 @@ export type GameAction =
   | { type: 'NEXT_CLUE'; index: number }
   | { type: 'ANOTHER_CLUE_ROUND' }
   | { type: 'START_DISCUSSION' }
-  | { type: 'START_VOTING' }
-  | { type: 'CAST_VOTE'; voterId: PlayerId; targetId: PlayerId }
+  /** `picks`: how many players this vote puts out (each voter names that many). Default 1. */
+  | { type: 'START_VOTING'; picks?: number }
+  /** One pick (`targetId`, ABSTAIN to abstain) or several (`targetIds`, [] to abstain). */
+  | { type: 'CAST_VOTE'; voterId: PlayerId; targetId?: PlayerId; targetIds?: PlayerId[] }
+  /** The group agreed out loud: these players are out without a phone vote. */
+  | { type: 'VOTE_OUT_LOUD'; playerIds: PlayerId[] }
   | { type: 'REVEAL_VOTES'; seed: Seed }
   | { type: 'START_REVOTE' }
   | { type: 'CONFIRM_ELIMINATION' }
@@ -92,6 +96,7 @@ export function createRoundState(
     alive: players.map((p) => p.id),
     eliminations: [],
     eliminationsAllowed: hunted,
+    skippedVotes: 0,
     voting: null,
     lastVote: null,
     guesses: [],
@@ -99,6 +104,24 @@ export function createRoundState(
     result: null,
     peeks: [],
   };
+}
+
+/** Full game talks on DISCUSSION, Words only on REVEAL_COMPLETE; voting starts from there. */
+function readyToVote(state: GameState): boolean {
+  return (
+    state.config.voting &&
+    ((state.phase === 'DISCUSSION' && state.config.playStyle === 'full') ||
+      (state.phase === 'REVEAL_COMPLETE' && state.config.playStyle === 'simple'))
+  );
+}
+
+/** A vote may put out 1 … one per hidden player still at large. */
+function validVoteSize(round: RoundState, n: number): boolean {
+  return Number.isInteger(n) && n >= 1 && n <= maxVoteOut(round);
+}
+
+function nextVoteNumber(round: RoundState): number {
+  return round.eliminations.reduce((n, e) => Math.max(n, e.vote + 1), 0);
 }
 
 function setupMatchesPlayers(setup: RoundSetup, players: readonly Player[]): boolean {
@@ -165,10 +188,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase !== 'REVEAL_COMPLETE' || !round || state.config.playStyle !== 'full') return state;
       return withRound(state, 'CLUE_PHASE', { clueIndex: 0, clueRound: 1 });
 
-    case 'REVEAL_ANSWER':
-      // Words-only style: the group has talked and voted out loud; show who was who.
-      if (state.phase !== 'REVEAL_COMPLETE' || !round || state.config.playStyle !== 'simple') return state;
+    case 'REVEAL_ANSWER': {
+      // Voting off: the group has talked and voted out loud; show who was who. Words only answers
+      // after the reveal, the Full game after the discussion.
+      const talked =
+        (state.phase === 'REVEAL_COMPLETE' && state.config.playStyle === 'simple') ||
+        (state.phase === 'DISCUSSION' && state.config.playStyle === 'full');
+      if (!round || !talked || state.config.voting) return state;
       return go(state, 'ANSWER', { roundsPlayed: state.roundsPlayed + 1 });
+    }
 
     case 'NEXT_CLUE':
       if (state.phase !== 'CLUE_PHASE' || !round || action.index !== round.clueIndex) return state;
@@ -183,13 +211,49 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase !== 'CLUE_PHASE' || !round) return state;
       return go(state, 'DISCUSSION');
 
-    case 'START_VOTING':
-      if (state.phase !== 'DISCUSSION' || !round) return state;
-      return withRound(state, 'VOTING', { voting: startVoting(round.alive), lastVote: null });
+    case 'START_VOTING': {
+      // Full game votes after the discussion; Words only after talking with the phone down.
+      const picks = action.picks ?? 1;
+      if (!round || !readyToVote(state) || !validVoteSize(round, picks)) return state;
+      return withRound(state, 'VOTING', {
+        voting: startVoting(round.alive, undefined, state.config.allowAbstain, picks),
+        lastVote: null,
+      });
+    }
+
+    case 'VOTE_OUT_LOUD': {
+      if (!round || !readyToVote(state)) return state;
+      const ids = action.playerIds;
+      const valid =
+        validVoteSize(round, ids.length) &&
+        new Set(ids).size === ids.length &&
+        ids.every((id) => round.alive.includes(id));
+      if (!valid) return state;
+      const vote = nextVoteNumber(round);
+      return withRound(state, 'ELIMINATION', {
+        alive: round.alive.filter((id) => !ids.includes(id)),
+        eliminations: [
+          ...round.eliminations,
+          ...ids.map((playerId) => ({
+            playerId,
+            role: round.setup.roles[playerId] ?? 'civilian',
+            votes: {},
+            tieBrokenRandomly: false,
+            vote,
+            outLoud: true,
+          })),
+        ],
+        voting: null,
+        lastVote: null,
+      });
+    }
 
     case 'CAST_VOTE': {
       if (state.phase !== 'VOTING' || !round?.voting) return state;
-      const voting = castVote(round.voting, action.voterId, action.targetId);
+      const one = action.targetId;
+      const targets = action.targetIds ?? (one === undefined ? null : one === ABSTAIN ? [] : [one]);
+      if (!targets) return state;
+      const voting = castVote(round.voting, action.voterId, targets);
       if (voting === round.voting) return state;
       return withRound(state, 'VOTING', { voting });
     }
@@ -197,38 +261,49 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'REVEAL_VOTES': {
       if (state.phase !== 'VOTING' || !round?.voting || !allVotesIn(round.voting)) return state;
       const outcome = resolveVote(round.voting, state.config.tieRule, action.seed);
-      return withRound(state, 'VOTE_RESULT', { lastVote: outcome });
+      // Places nobody got a vote for are used up now; with nobody out there is nothing to confirm.
+      return withRound(state, 'VOTE_RESULT', {
+        lastVote: outcome,
+        skippedVotes: round.skippedVotes + outcome.unfilled,
+        ...(outcome.nobodyOut ? { voting: null } : {}),
+      });
     }
 
     case 'START_REVOTE': {
       if (state.phase !== 'VOTE_RESULT' || !round?.lastVote?.needsRevote) return state;
-      const voting = startVoting(round.alive, round.lastVote.tally.leaders);
+      // Only the tied players, for the places still open; anyone already out stays out.
+      const { tied, revotePicks, alreadyOut } = round.lastVote;
+      const voting = startVoting(round.alive, tied, state.config.allowAbstain, revotePicks, alreadyOut);
       return withRound(state, 'VOTING', { voting: { ...voting, isRevote: true }, lastVote: null });
     }
 
     case 'CONFIRM_ELIMINATION': {
       const outcome = round?.lastVote;
-      if (state.phase !== 'VOTE_RESULT' || !round || !outcome?.eliminated) return state;
-      const eliminated = outcome.eliminated;
-      if (!round.alive.includes(eliminated)) return state;
+      if (state.phase !== 'VOTE_RESULT' || !round || !outcome || outcome.eliminated.length === 0) return state;
+      const out = outcome.eliminated;
+      if (!out.every((id) => round.alive.includes(id))) return state;
+      const vote = nextVoteNumber(round);
       return withRound(state, 'ELIMINATION', {
-        alive: round.alive.filter((id) => id !== eliminated),
+        alive: round.alive.filter((id) => !out.includes(id)),
         eliminations: [
           ...round.eliminations,
-          {
-            playerId: eliminated,
-            role: round.setup.roles[eliminated] ?? 'civilian',
+          ...out.map((playerId) => ({
+            playerId,
+            role: round.setup.roles[playerId] ?? 'civilian',
             votes: outcome.votes,
             tieBrokenRandomly: outcome.tieBrokenRandomly,
-          },
+            vote,
+            outLoud: false,
+          })),
         ],
         voting: null,
       });
     }
 
     case 'START_GUESS': {
+      // After a wrong guess, the next imposter caught in the same vote gets their turn.
       const step = getNextStep(state);
-      if (state.phase !== 'ELIMINATION' || step.kind !== 'guess') return state;
+      if ((state.phase !== 'ELIMINATION' && state.phase !== 'IMPOSTER_GUESS') || step.kind !== 'guess') return state;
       return withRound(state, 'IMPOSTER_GUESS', { pendingGuesser: step.playerId });
     }
 
@@ -258,6 +333,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!round || getNextStep(state).kind !== 'continue') return state;
       const clueOrder = round.clueOrder.filter((id) => round.alive.includes(id));
       const patch: Partial<RoundState> = { pendingGuesser: null, lastVote: null, voting: null, clueOrder };
+      // Words only has no clue or discussion screens: back to talking out loud.
+      if (state.config.playStyle === 'simple') return withRound(state, 'REVEAL_COMPLETE', patch);
       if (action.to === 'clues') {
         return withRound(state, 'CLUE_PHASE', { ...patch, clueIndex: 0, clueRound: round.clueRound + 1 });
       }
@@ -267,7 +344,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'FINISH_ROUND': {
       const step = getNextStep(state);
       if (!round || step.kind !== 'result') return state;
-      const { deltas, breakdown } = scoreRound(round, state.config.scoring, step.winners, step.reason);
+      const scoring = keepsScore(state.config) ? state.config.scoring : { ...state.config.scoring, enabled: false };
+      const { deltas, breakdown } = scoreRound(round, scoring, step.winners, step.reason);
       const scores = { ...state.scores };
       for (const [id, pts] of Object.entries(deltas)) scores[id] = (scores[id] ?? 0) + pts;
       const summary = {
@@ -295,7 +373,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return go(state, 'SCOREBOARD');
 
     case 'NEXT_ROUND': {
-      if ((state.phase !== 'SCOREBOARD' && state.phase !== 'ANSWER') || !round) return state;
+      const finished =
+        state.phase === 'SCOREBOARD' ||
+        state.phase === 'ANSWER' ||
+        (state.phase === 'ROUND_RESULT' && state.config.playStyle === 'simple');
+      if (!finished || !round) return state;
       if (!setupMatchesPlayers(action.setup, state.players)) return state;
       return go(state, 'WORD_GENERATED', {
         round: createRoundState(action.roundId, round.number + 1, state.players, action.setup),

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, type ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '../../components/AppText';
 import { FadeIn } from '../../components/anim';
@@ -30,6 +30,7 @@ export default function PlayersScreen() {
   const config = useGameConfig();
   const [draft, setDraft] = useState('');
   const addRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,6 +79,8 @@ export default function PlayersScreen() {
     haptic('tap');
     setPlayers([...players, { id: randomId('p_'), name: clean }]);
     setDraft('');
+    // The list grew: keep the "Add a name" field in view, above the keyboard and the Next button.
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   };
 
   const quickAdd = useGuardedCallback(() => {
@@ -91,6 +94,7 @@ export default function PlayersScreen() {
     while (taken.has(normalizeKey(name))) name = t('players.defaultName', { index: ++i });
     haptic('tap');
     setPlayers([...players, { id: randomId('p_'), name }]);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, 150);
 
   const shufflePlayers = useGuardedCallback(() => {
@@ -144,6 +148,7 @@ export default function PlayersScreen() {
     <Screen
       title={t('players.title')}
       onBack={() => safeBack()}
+      scrollRef={scrollRef}
       right={
         <Pressable
           onPress={shufflePlayers}

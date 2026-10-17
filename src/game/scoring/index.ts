@@ -33,12 +33,18 @@ export function scoreRound(
   };
 
   if (scoring.enabled) {
+    // Players voted out together share one set of ballots: count each vote once.
+    const counted = new Set<number>();
     for (const elimination of round.eliminations) {
-      for (const [voter, target] of Object.entries(elimination.votes)) {
-        const voterRole = roles[voter];
-        const targetRole = roles[target];
-        if (voterRole && targetRole && isCivilianTeam(voterRole) && isHunted(targetRole)) {
-          add(voter, 'correctVote', scoring.civilianCorrectVote);
+      if (counted.has(elimination.vote)) continue;
+      counted.add(elimination.vote);
+      for (const [voter, targets] of Object.entries(elimination.votes)) {
+        for (const target of targets) {
+          const voterRole = roles[voter];
+          const targetRole = roles[target];
+          if (voterRole && targetRole && isCivilianTeam(voterRole) && isHunted(targetRole)) {
+            add(voter, 'correctVote', scoring.civilianCorrectVote);
+          }
         }
       }
     }

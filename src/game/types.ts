@@ -7,7 +7,7 @@ export interface Player {
   name: string;
 }
 
-export type GameModeId = 'classic' | 'undercover' | 'blind' | 'chaos';
+export type GameModeId = 'classic' | 'undercover' | 'lost' | 'questions' | 'chaos';
 
 export type RoleId = 'civilian' | 'imposter' | 'undercover' | 'detective' | 'jester' | 'agent';
 
@@ -77,6 +77,13 @@ export interface GameConfig {
   playStyle: PlayStyle;
   /** Imposters may see the category as a hint (Classic, and Chaos's category twist). Off = never. */
   imposterHint: boolean;
+  /**
+   * Secret voting on the phone, in either play style. Off = the group decides out loud and the
+   * phone just shows the answer.
+   */
+  voting: boolean;
+  /** Voters may abstain instead of naming a suspect. */
+  allowAbstain: boolean;
 }
 
 /** A playable category (built-in or custom) handed to the engine. */
@@ -122,32 +129,55 @@ export interface VotingState {
   voters: PlayerId[];
   /** Index into `voters` of the player currently voting; === voters.length once everyone voted. */
   voterIndex: number;
-  votes: Record<PlayerId, PlayerId>;
+  /** voter → the players they named (exactly `picks`); an empty list means they abstained. */
+  votes: Record<PlayerId, PlayerId[]>;
   isRevote: boolean;
+  allowAbstain: boolean;
+  /** How many players each voter names — and how many players this vote puts out. */
+  picks: number;
+  /** Put out before a tie revote; they leave together with the revote's winners. */
+  alreadyOut: PlayerId[];
 }
 
 export interface Tally {
   counts: Record<PlayerId, number>;
+  /** Everyone with the most votes. */
   leaders: PlayerId[];
   maxVotes: number;
   isTie: boolean;
+  abstained: number;
 }
 
 export interface VoteOutcome {
   tally: Tally;
-  votes: Record<PlayerId, PlayerId>;
+  votes: Record<PlayerId, PlayerId[]>;
   isRevote: boolean;
-  /** Player eliminated by this vote, or null when a revote is required. */
-  eliminated: PlayerId | null;
+  /** Players this vote puts out (empty while a revote is needed, or when nobody got a vote). */
+  eliminated: PlayerId[];
+  /** Out for sure while the last place(s) go to a revote. */
+  alreadyOut: PlayerId[];
+  /** Tied for the last place(s): revoted, or picked at random. */
+  tied: PlayerId[];
   needsRevote: boolean;
+  /** How many places the revote fills. */
+  revotePicks: number;
   tieBrokenRandomly: boolean;
+  /** Places nobody got a vote for (abstentions). Each one is used up. */
+  unfilled: number;
+  /** Nobody got a single vote: nobody is out, and the vote is used up. */
+  nobodyOut: boolean;
 }
 
 export interface Elimination {
   playerId: PlayerId;
   role: RoleId;
-  votes: Record<PlayerId, PlayerId>;
+  /** The ballots of the vote that put them out ({} when the group decided out loud). */
+  votes: Record<PlayerId, PlayerId[]>;
   tieBrokenRandomly: boolean;
+  /** Which vote of the round put them out; players voted out together share it. */
+  vote: number;
+  /** The group decided out loud instead of voting on the phone. */
+  outLoud: boolean;
 }
 
 export interface Guess {
@@ -184,6 +214,8 @@ export interface RoundState {
   alive: PlayerId[];
   eliminations: Elimination[];
   eliminationsAllowed: number;
+  /** Votes that ended with nobody out (everyone abstained). Each one uses up a vote. */
+  skippedVotes: number;
   voting: VotingState | null;
   lastVote: VoteOutcome | null;
   guesses: Guess[];
@@ -236,6 +268,8 @@ export interface GameState {
 /** What a single player is allowed to see during their private reveal. */
 export interface SecretView {
   playerId: PlayerId;
+  /** A secret word, or (Questions mode) a question to answer. */
+  contentKind: 'word' | 'question';
   /** The role card to show. An unaware undercover sees "civilian". */
   shownRole: RoleId;
   word: string | null;

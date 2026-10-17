@@ -3,7 +3,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useT } from '../localization';
 import { SPACE, TOUCH, usePalette } from '../theme';
 import { useGuardedCallback } from '../utils/useGuardedCallback';
@@ -30,6 +30,8 @@ interface ScreenProps {
   /** Pinned at the bottom, above the safe area (primary actions). */
   footer?: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
+  /** The scrolling container, for screens that keep a field in view (scroll = true only). */
+  scrollRef?: React.Ref<ScrollView>;
   /** Override the background gradient (e.g. red for imposter reveals). */
   gradient?: readonly [string, string, ...string[]];
   testID?: string;
@@ -48,6 +50,7 @@ export function Screen({
   footer,
   contentStyle,
   gradient,
+  scrollRef,
   testID,
 }: ScreenProps) {
   const p = usePalette();
@@ -55,6 +58,9 @@ export function Screen({
   const insets = useSafeAreaInsets();
   const back = useGuardedCallback(onBack);
   const hasHeader = !!(title || onBack || right);
+  // While typing, the keyboard covers the navigation bar, so its inset isn't needed below the footer.
+  const keyboard = useKeyboardVisible();
+  const bottomInset = keyboard ? 0 : insets.bottom;
 
   // Without an outer ScrollView the content must stay within the viewport so inner lists can scroll.
   const body = <View style={[styles.content, !scroll && styles.contentFixed, contentStyle]}>{children}</View>;
@@ -62,7 +68,9 @@ export function Screen({
   return (
     <View style={[styles.root, { backgroundColor: p.bg }]} testID={testID}>
       <LinearGradient colors={gradient ?? p.bgGradient} style={StyleSheet.absoluteFill} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Edge-to-edge Android (and iOS) never shrink the window for the keyboard: pad instead, so
+          text fields and the footer stay above it. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
         <View style={[styles.flex, { paddingTop: insets.top }]}>
           {hasHeader ? (
             <View style={styles.header}>
@@ -96,10 +104,11 @@ export function Screen({
           ) : null}
           {scroll ? (
             <ScrollView
+              ref={scrollRef}
               style={styles.flex}
               contentContainerStyle={[
                 styles.scrollContent,
-                { paddingBottom: footer ? SPACE.lg : insets.bottom + SPACE.xl },
+                { paddingBottom: footer ? SPACE.lg : bottomInset + SPACE.xl },
               ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
@@ -107,10 +116,10 @@ export function Screen({
               {body}
             </ScrollView>
           ) : (
-            <View style={[styles.flex, { paddingBottom: footer ? 0 : insets.bottom + SPACE.md }]}>{body}</View>
+            <View style={[styles.flex, { paddingBottom: footer ? 0 : bottomInset + SPACE.md }]}>{body}</View>
           )}
           {footer ? (
-            <View style={[styles.footer, { paddingBottom: insets.bottom + SPACE.md }]}>
+            <View style={[styles.footer, { paddingBottom: bottomInset + SPACE.md }]}>
               <View style={styles.footerInner}>{footer}</View>
             </View>
           ) : null}

@@ -21,6 +21,7 @@ import { DiscussionPhase } from '../screens/game/DiscussionPhase';
 import { EliminationPhase } from '../screens/game/EliminationPhase';
 import { GuessPhase } from '../screens/game/GuessPhase';
 import { PeekOverlay } from '../screens/game/PeekOverlay';
+import { closePrivateScreen } from '../screens/game/privateScreen';
 import { GameCompletePhase, goHome, RoundResultPhase, ScoreboardPhase } from '../screens/game/ResultPhases';
 import { RevealPhase } from '../screens/game/RevealPhase';
 import { VoteResultPhase } from '../screens/game/VoteResultPhase';
@@ -51,10 +52,13 @@ export default function GameRoute() {
   const peekPhase = phase === 'CLUE_PHASE' || phase === 'DISCUSSION' || talkingOutLoud;
   const peekVisible = peekFor === peekContext && peekPhase;
   const sensitive = SENSITIVE_PHASES.includes(phase) || peekVisible;
+  // Nothing is lost by leaving these (stats are already recorded), so no "leave game?" dialog.
+  const finished = phase === 'GAME_COMPLETE' || phase === 'ANSWER' || (simple && phase === 'ROUND_RESULT');
 
   const leave = useCallback(async () => {
-    // Never leave a secret visible behind the dialog.
+    // Never leave a secret (or an open ballot / guess) visible behind the dialog.
     if (getGameState().phase === 'ROLE_REVEAL') dispatch({ type: 'HIDE_SECRET' });
+    closePrivateScreen();
     setPeekFor(null);
     const ok = await confirm({
       title: t('game.leaveTitle'),
@@ -81,8 +85,10 @@ export default function GameRoute() {
         dispatch({ type: 'HIDE_SECRET' });
         return true;
       }
+      // An open ballot or final guess closes back to its pass-the-phone gate first.
+      if (closePrivateScreen()) return true;
       if (!isInGame(current)) return false;
-      if (current === 'GAME_COMPLETE' || current === 'ANSWER') {
+      if (finished) {
         exitGame();
         goHome();
         return true;
@@ -91,7 +97,7 @@ export default function GameRoute() {
       return true;
     });
     return () => sub.remove();
-  }, [leave, peekVisible]);
+  }, [leave, peekVisible, finished]);
 
   // Keep the screen on during a game (prevents the phone locking mid-discussion).
   useEffect(() => {
@@ -163,7 +169,8 @@ export default function GameRoute() {
       body = <EliminationPhase key={round?.eliminations.length} state={state} />;
       break;
     case 'IMPOSTER_GUESS':
-      body = <GuessPhase state={state} />;
+      // Keyed per guesser: each caught imposter starts at their own pass-the-phone gate.
+      body = <GuessPhase key={round?.pendingGuesser ?? ''} state={state} />;
       break;
     case 'ROUND_RESULT':
       body = <RoundResultPhase state={state} />;
@@ -187,7 +194,7 @@ export default function GameRoute() {
       onBack={
         phase === 'GAME_COMPLETE'
           ? undefined
-          : phase === 'ANSWER'
+          : finished
             ? () => {
                 exitGame();
                 goHome();
@@ -198,7 +205,9 @@ export default function GameRoute() {
       backLabel={t('game.exit')}
       testID={`phase-${phase}`}
       // These phases scroll their own content so the main buttons stay pinned on small screens.
-      scroll={phase !== 'VOTING' && phase !== 'ANSWER' && !(simple && phase === 'REVEAL_COMPLETE')}
+      scroll={
+        phase !== 'VOTING' && phase !== 'VOTE_RESULT' && phase !== 'ANSWER' && !(simple && phase === 'REVEAL_COMPLETE')
+      }
     >
       {body}
       {state.round && peekVisible ? <PeekOverlay state={state} onClose={() => setPeekFor(null)} /> : null}

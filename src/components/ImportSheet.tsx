@@ -1,8 +1,9 @@
 import * as Clipboard from 'expo-clipboard';
 import React, { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useT } from '../localization';
 import { applyBackup, parseBackup } from '../state/backup';
 import { RADIUS, SPACE, usePalette } from '../theme';
@@ -22,6 +23,7 @@ export function ImportSheet({
   const t = useT();
   const p = usePalette();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardVisible();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -58,13 +60,14 @@ export function ImportSheet({
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <View style={[styles.backdrop, { backgroundColor: p.overlay }]}>
+      {/* The sheet rides up above the keyboard instead of hiding under it. */}
+      <KeyboardAvoidingView behavior="padding" style={[styles.backdrop, { backgroundColor: p.overlay }]}>
         <View
           style={[
             styles.sheet,
             {
               backgroundColor: p.scheme === 'dark' ? '#1C1730' : '#FFFFFF',
-              paddingBottom: insets.bottom + SPACE.lg,
+              paddingBottom: (keyboard ? 0 : insets.bottom) + SPACE.lg,
               borderColor: p.border,
             },
           ]}
@@ -109,7 +112,7 @@ export function ImportSheet({
             <Button label={t('common.cancel')} variant="ghost" size="md" onPress={onClose} />
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

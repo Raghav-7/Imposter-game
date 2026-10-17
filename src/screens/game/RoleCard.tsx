@@ -6,6 +6,7 @@ import { AppText } from '../../components/AppText';
 import type { SecretView } from '../../game/types';
 import { useT } from '../../localization';
 import { RADIUS, SPACE, usePalette } from '../../theme';
+import { SecretWord } from './SecretWord';
 
 /**
  * The private role card. Rendered ONLY while the owner is looking; the parent
@@ -60,22 +61,32 @@ export function RoleCard({ view }: { view: SecretView }) {
         {title}
       </AppText>
 
-      {view.word !== null ? (
+      {view.word !== null && view.contentKind === 'question' ? (
+        <View style={styles.wordBlock}>
+          <AppText variant="label" tone="muted" align="center">
+            {t('reveal.yourQuestion')}
+          </AppText>
+          <AppText
+            variant="title"
+            align="center"
+            style={styles.question}
+            testID="role-word"
+            accessibilityLabel={view.word}
+          >
+            {view.word}
+          </AppText>
+          <AppText variant="caption" tone="muted" align="center">
+            {t('reveal.answerIt')}
+          </AppText>
+        </View>
+      ) : view.word !== null ? (
         <View style={styles.wordBlock}>
           <AppText variant="label" tone="muted" align="center">
             {t('reveal.yourWord')}
           </AppText>
-          <AppText
-            variant="hero"
-            align="center"
-            numberOfLines={3}
-            adjustsFontSizeToFit
-            minimumFontScale={0.4}
-            style={styles.word}
-            testID="role-word"
-          >
-            {view.word.toUpperCase()}
-          </AppText>
+          <View style={styles.word}>
+            <SecretWord word={view.word} testID="role-word" />
+          </View>
           <AppText variant="caption" tone="muted" align="center">
             {t('reveal.remember')}
           </AppText>
@@ -147,5 +158,6 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 56, lineHeight: 66, textAlign: 'center' },
   wordBlock: { gap: SPACE.sm, alignItems: 'center' },
   word: { marginVertical: SPACE.xs, width: '100%' },
+  question: { marginVertical: SPACE.xs },
   hint: { borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm },
 });

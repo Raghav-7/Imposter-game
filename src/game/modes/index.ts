@@ -10,10 +10,16 @@ export interface ModeDefinition {
   emoji: string;
   /** Role given to the hunted players. */
   huntedRole: Extract<RoleId, 'imposter' | 'undercover'>;
-  /** Imposters see the category name as a hint. */
+  /** Imposters see the category name as a hint (when the Imposter hint is on). */
   imposterSeesCategory: boolean;
-  /** Needs a second, related word. */
-  needsAltWord: boolean;
+  /**
+   * What the odd one out gets instead of the secret word:
+   * - 'none': nothing (Classic, Chaos)
+   * - 'related': a similar word (Undercover)
+   * - 'otherTopic': a word from a different topic, and they don't know it (Lost)
+   * - 'question': a slightly different question, and they don't know it (Questions)
+   */
+  oddContent: 'none' | 'related' | 'otherTopic' | 'question';
   /** Rolls random chaos modifiers each round. */
   usesModifiers: boolean;
 }
@@ -24,7 +30,7 @@ export const MODES: Readonly<Record<GameModeId, ModeDefinition>> = {
     emoji: '🎭',
     huntedRole: 'imposter',
     imposterSeesCategory: true,
-    needsAltWord: false,
+    oddContent: 'none',
     usesModifiers: false,
   },
   undercover: {
@@ -32,15 +38,23 @@ export const MODES: Readonly<Record<GameModeId, ModeDefinition>> = {
     emoji: '🥸',
     huntedRole: 'undercover',
     imposterSeesCategory: false,
-    needsAltWord: true,
+    oddContent: 'related',
     usesModifiers: false,
   },
-  blind: {
-    id: 'blind',
-    emoji: '🙈',
+  lost: {
+    id: 'lost',
+    emoji: '🧭',
     huntedRole: 'imposter',
     imposterSeesCategory: false,
-    needsAltWord: false,
+    oddContent: 'otherTopic',
+    usesModifiers: false,
+  },
+  questions: {
+    id: 'questions',
+    emoji: '❓',
+    huntedRole: 'imposter',
+    imposterSeesCategory: false,
+    oddContent: 'question',
     usesModifiers: false,
   },
   chaos: {
@@ -48,12 +62,18 @@ export const MODES: Readonly<Record<GameModeId, ModeDefinition>> = {
     emoji: '🌀',
     huntedRole: 'imposter',
     imposterSeesCategory: false,
-    needsAltWord: false,
+    oddContent: 'none',
     usesModifiers: true,
   },
 };
 
-export const MODE_ORDER: readonly GameModeId[] = ['classic', 'undercover', 'blind', 'chaos'];
+export const MODE_ORDER: readonly GameModeId[] = ['classic', 'undercover', 'lost', 'questions', 'chaos'];
+
+/** The Imposter gets a word or question of their own and a card identical to everyone else's. */
+export function imposterIsUnaware(mode: GameModeId): boolean {
+  const odd = MODES[mode].oddContent;
+  return odd === 'otherTopic' || odd === 'question';
+}
 
 export interface ModifierDefinition {
   id: ModifierId;

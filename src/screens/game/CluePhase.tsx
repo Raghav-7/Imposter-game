@@ -107,7 +107,7 @@ export function CluePhase({ state, onPeek }: { state: GameState; onPeek?: () => 
               {current.name}
             </AppText>
             <AppText variant="title" tone="muted" align="center">
-              {t('clue.giveClue')}
+              {state.config.mode === 'questions' ? t('clue.answerQuestion') : t('clue.giveClue')}
             </AppText>
             {seconds > 0 ? <ClueTimer key={`${round.clueRound}:${idx}`} seconds={seconds} /> : null}
           </FadeIn>
@@ -172,7 +172,7 @@ export function CluePhase({ state, onPeek }: { state: GameState; onPeek?: () => 
         )}
         {onPeek ? (
           <Button
-            label={t('peek.button')}
+            label={state.config.mode === 'questions' ? t('peek.buttonQuestion') : t('peek.button')}
             variant="ghost"
             size="md"
             icon="eye-outline"

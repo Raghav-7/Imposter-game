@@ -90,7 +90,11 @@ describe('game store: save / kill / resume', () => {
   });
 
   it('records stats exactly once when a round finishes', () => {
-    startNewGame(makePlayers(3), { ...DEFAULT_GAME_CONFIG, finalGuess: false, playStyle: 'full' }, builtInSource());
+    startNewGame(
+      makePlayers(3),
+      { ...DEFAULT_GAME_CONFIG, finalGuess: false, playStyle: 'full', voting: true },
+      builtInSource(),
+    );
     const s0 = getGameState();
     dispatch({ type: 'BEGIN_REVEAL' });
     for (let i = 0; i < 3; i++) {

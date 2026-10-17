@@ -1,21 +1,26 @@
 import * as fc from 'fast-check';
 
 import {
+  ABSTAIN,
   createRng,
   createRoundSetup,
   getSecretView,
+  imposterIsUnaware,
   isHunted,
+  lastBatch,
   maxImposters,
+  maxVoteOut,
   MODE_ORDER,
   roleTeam,
   seedFromNumber,
+  shuffle,
   validatePlayers,
   type GameConfig,
   type GameModeId,
   type GameState,
 } from '../../src/game';
 import { BUILT_IN_CATEGORY_IDS } from '../../src/data/words';
-import { builtInSource, config, makePlayers, playRoundToResult, randomVoter, startGame } from '../helpers';
+import { builtInSource, config, makePlayers, playRoundToResult, startGame, type VoteStrategy } from '../helpers';
 
 const src = builtInSource();
 
@@ -30,6 +35,8 @@ const arbConfig = fc
     detective: fc.boolean(),
     tieRule: fc.constantFrom('revote' as const, 'random' as const),
     finalGuess: fc.boolean(),
+    playStyle: fc.constantFrom('full' as const, 'simple' as const),
+    allowAbstain: fc.boolean(),
     seed: fc.integer({ min: 0, max: 2 ** 31 - 1 }),
   })
   .map((r) => {
@@ -43,6 +50,10 @@ const arbConfig = fc
       roles,
       tieRule: r.tieRule,
       finalGuess: r.finalGuess,
+      // Both play styles, always with on-phone voting (the simulation plays the votes).
+      playStyle: r.playStyle,
+      voting: true,
+      allowAbstain: r.allowAbstain,
     });
     return { ...r, cfg };
   });
@@ -91,7 +102,13 @@ describe('property: role assignment invariants', () => {
         for (const p of s.players) {
           const v = getSecretView(s, p.id)!;
           const role = setup.roles[p.id]!;
-          if (role === 'imposter') expect(v.word).toBeNull();
+          if (role === 'imposter' && imposterIsUnaware(cfg.mode)) {
+            // Lost / Questions: their own word or question, on a card that looks like a civilian's.
+            expect(v.word).toBe(setup.altWord);
+            expect(v.word).not.toBe(setup.word.word);
+            expect(v.shownRole).toBe('civilian');
+            expect(v.categoryHint).toBeNull();
+          } else if (role === 'imposter') expect(v.word).toBeNull();
           else if (role === 'undercover') {
             expect(v.word).toBe(setup.altWord);
             expect(v.word).not.toBe(setup.word.word);
@@ -114,18 +131,43 @@ describe('property: role assignment invariants', () => {
   });
 });
 
+/**
+ * Random suspects (as many as the vote puts out). When abstaining is allowed, a voter abstains
+ * about a quarter of the time, and now and then the whole group abstains.
+ */
+const randomOrAbstain = (rng: ReturnType<typeof createRng>): VoteStrategy => {
+  let everyone = false;
+  return (_v, targets, s) => {
+    const voting = s.round!.voting!;
+    if (voting.voterIndex === 0) everyone = voting.allowAbstain && rng.int(8) === 0;
+    if (voting.allowAbstain && (everyone || rng.int(4) === 0)) return ABSTAIN;
+    return shuffle(rng, targets).slice(0, voting.picks);
+  };
+};
+
 describe('chaos simulation: thousands of complete random games', () => {
   it('every game ends in a valid result with consistent votes, eliminations and scores', () => {
     const rng = createRng(seedFromNumber(2024));
     const samples = fc.sample(arbConfig, { numRuns: 1500, seed: 42 });
     let finished = 0;
+    let simple = 0;
+    let abstained = 0;
+    let together = 0;
+    let outLoud = 0;
     for (const { n, cfg, seed } of samples) {
+      if (cfg.playStyle === 'simple') simple++;
       let s: GameState = startGame(makePlayers(n, rng.int(2) ? 'Player ' : '😀'), cfg, seed);
       s = playRoundToResult(
         s,
-        randomVoter(rng),
+        randomOrAbstain(rng),
         (st) => (rng.int(3) === 0 ? st.round!.setup.word.word : 'wrong'),
         seed,
+        {
+          // Any vote size the group may choose, and sometimes a decision out loud instead.
+          voteSize: (st) => 1 + rng.int(maxVoteOut(st.round!)),
+          outLoud: (st) =>
+            rng.int(6) === 0 ? shuffle(rng, st.round!.alive).slice(0, 1 + rng.int(maxVoteOut(st.round!))) : null,
+        },
       );
       const round = s.round!;
       const result = round.result!;
@@ -135,13 +177,16 @@ describe('chaos simulation: thousands of complete random games', () => {
       // eliminations are unique and at most the number of hidden players
       const elim = round.eliminations.map((e) => e.playerId);
       expect(new Set(elim).size).toBe(elim.length);
-      expect(elim.length).toBeLessThanOrEqual(round.eliminationsAllowed);
+      expect(elim.length + round.skippedVotes).toBeLessThanOrEqual(round.eliminationsAllowed);
+      if (!cfg.allowAbstain) expect(round.skippedVotes).toBe(0);
       expect(round.alive.length + elim.length).toBe(n);
 
       // every decisive vote: each eligible voter voted exactly once, never for themselves
       for (const e of round.eliminations) {
-        for (const [voter, target] of Object.entries(e.votes)) {
-          expect(voter).not.toBe(target);
+        for (const [voter, targets] of Object.entries(e.votes)) {
+          expect(targets).not.toContain(voter);
+          expect(new Set(targets).size).toBe(targets.length);
+          if (targets.length === 0) expect(cfg.allowAbstain).toBe(true);
         }
       }
 
@@ -149,16 +194,30 @@ describe('chaos simulation: thousands of complete random games', () => {
       const hiddenAlive = round.alive.filter((id) => isHunted(round.setup.roles[id]!));
       if (result.reason === 'allCaught') expect(hiddenAlive).toHaveLength(0);
       if (result.reason === 'imposterSurvived') expect(hiddenAlive.length).toBeGreaterThan(0);
+      // Words only never keeps points.
+      if (cfg.playStyle === 'simple') expect(Object.values(s.scores).every((v) => v === 0)).toBe(true);
       if (result.reason === 'imposterGuessed') expect(round.guesses.some((g) => g.correct)).toBe(true);
-      if (result.reason === 'jesterVotedOut') expect(round.eliminations.at(-1)!.role).toBe('jester');
+      if (result.reason === 'jesterVotedOut') expect(lastBatch(round).some((e) => e.role === 'jester')).toBe(true);
 
       // score deltas are non-negative and match the breakdown
       const sum = result.breakdown.reduce((a, l) => a + l.points, 0);
       expect(Object.values(result.scoreDeltas).reduce((a, b) => a + b, 0)).toBe(sum);
       expect(Object.values(s.scores).every((v) => v >= 0)).toBe(true);
+      if (round.skippedVotes > 0) abstained++;
+      const perVote = new Map<number, number>();
+      for (const e of round.eliminations) perVote.set(e.vote, (perVote.get(e.vote) ?? 0) + 1);
+      if ([...perVote.values()].some((k) => k > 1)) together++;
+      if (round.eliminations.some((e) => e.outLoud)) outLoud++;
+      // Out-loud decisions carry no ballots.
+      for (const e of round.eliminations) if (e.outLoud) expect(e.votes).toEqual({});
       finished++;
     }
     expect(finished).toBe(1500);
+    // The sample really covers both styles and all-abstain votes.
+    expect(simple).toBeGreaterThan(300);
+    expect(abstained).toBeGreaterThan(0);
+    expect(together).toBeGreaterThan(0); // several players voted out at once
+    expect(outLoud).toBeGreaterThan(0);
   });
 });
 

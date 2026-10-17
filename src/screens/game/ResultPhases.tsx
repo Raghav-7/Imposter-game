@@ -8,8 +8,9 @@ import { Confetti, FadeIn, PopIn } from '../../components/anim';
 import { Button } from '../../components/Button';
 import { Card, Divider, Pill } from '../../components/controls';
 import { toast } from '../../components/Overlay';
+import { keepsScore } from '../../game/engine/config';
 import { ROLES } from '../../game/roles';
-import type { GameState, Team } from '../../game/types';
+import type { GameState, ResultReason, Team } from '../../game/types';
 import { haptic } from '../../haptics';
 import { type TFunction, type TranslationKey, useT } from '../../localization';
 import { dispatch, exitGame, startNewGame, startNextRound } from '../../state/gameStore';
@@ -17,11 +18,20 @@ import { useWordSource } from '../../state/wordSource';
 import { RADIUS, SPACE, usePalette } from '../../theme';
 import { setupIssueMessage } from '../../utils/messages';
 import { useGuardedCallback } from '../../utils/useGuardedCallback';
+import { WordsCard } from './WordsCard';
 
 export function winnerHeadline(winners: readonly Team[], mode: GameState['config']['mode'], t: TFunction): string {
   if (winners.includes('jester')) return t('win.jester');
   if (winners.includes('civilians')) return t('win.civilians');
   return mode === 'undercover' ? t('win.undercovers') : t('win.imposters');
+}
+
+/** Why the round ended, worded for the mode (Undercover and Questions have their own lines). */
+function reasonKey(reason: ResultReason, mode: GameState['config']['mode']): TranslationKey {
+  if (reason === 'jesterVotedOut') return 'win.reason.jesterVotedOut';
+  if (mode === 'undercover') return `win.reason.${reason}.undercover` as TranslationKey;
+  if (mode === 'questions' && reason !== 'imposterSurvived') return `win.reason.${reason}.questions` as TranslationKey;
+  return `win.reason.${reason}` as TranslationKey;
 }
 
 /** Navigates home, clearing the setup screens from the stack. */
@@ -33,9 +43,17 @@ export function goHome() {
 /** ROUND_RESULT */
 export function RoundResultPhase({ state }: { state: GameState }) {
   const t = useT();
+  const source = useWordSource();
   const round = state.round!;
   const result = round.result!;
   const civiliansWon = result.winners.includes('civilians');
+  // Words only (with voting) has no scoreboard: straight to the next round.
+  const simple = state.config.playStyle === 'simple';
+  const showPoints = keepsScore(state.config);
+  const next = useGuardedCallback(() => {
+    const res = startNextRound(source);
+    if (!res.ok) toast(setupIssueMessage(res.errors[0]!, t, state.players.length));
+  }, 1200);
 
   useEffect(() => {
     playSound('win');
@@ -68,36 +86,12 @@ export function RoundResultPhase({ state }: { state: GameState }) {
           {winnerHeadline(result.winners, state.config.mode, t)}
         </AppText>
         <AppText variant="body" tone="muted" align="center">
-          {t(
-            `win.reason.${result.reason}${state.config.mode === 'undercover' && result.reason !== 'jesterVotedOut' ? '.undercover' : ''}` as TranslationKey,
-          )}
+          {t(reasonKey(result.reason, state.config.mode))}
         </AppText>
       </PopIn>
 
       <FadeIn delay={250}>
-        <Card tone="primary" style={styles.words}>
-          <View style={styles.wordCol}>
-            <AppText variant="label" tone="muted" align="center">
-              {t('win.secretWord')}
-            </AppText>
-            <AppText variant="title" align="center" numberOfLines={2} adjustsFontSizeToFit testID="round-word">
-              {round.setup.word.word}
-            </AppText>
-            <AppText variant="caption" tone="faint" align="center">
-              {round.setup.word.categoryName}
-            </AppText>
-          </View>
-          {round.setup.altWord ? (
-            <View style={styles.wordCol}>
-              <AppText variant="label" tone="muted" align="center">
-                {t('win.undercoverWord')}
-              </AppText>
-              <AppText variant="title" align="center" numberOfLines={2} adjustsFontSizeToFit>
-                {round.setup.altWord}
-              </AppText>
-            </View>
-          ) : null}
-        </Card>
+        <WordsCard state={state} testID="round-word" />
       </FadeIn>
 
       <FadeIn delay={400}>
@@ -123,20 +117,37 @@ export function RoundResultPhase({ state }: { state: GameState }) {
                     {out ? ` · ${t('win.eliminated')}` : ''}
                   </AppText>
                 </View>
-                {state.config.scoring.enabled && delta > 0 ? <Pill label={`+${delta}`} tone="success" /> : null}
+                {showPoints && delta > 0 ? <Pill label={`+${delta}`} tone="success" /> : null}
               </View>
             </React.Fragment>
           ))}
         </Card>
       </FadeIn>
 
-      <Button
-        label={t('win.scoreboard')}
-        icon="podium"
-        onPress={() => dispatch({ type: 'SHOW_SCOREBOARD' })}
-        testID="round-scoreboard"
-        style={{ marginTop: SPACE.sm }}
-      />
+      {simple ? (
+        <View style={[styles.actions, styles.gapTop]}>
+          <Button label={t('answer.nextRound')} icon="play" onPress={next} haptics="confirm" testID="round-next" />
+          <Button
+            label={t('final.home')}
+            icon="home"
+            variant="secondary"
+            size="md"
+            onPress={() => {
+              exitGame();
+              goHome();
+            }}
+            testID="round-home"
+          />
+        </View>
+      ) : (
+        <Button
+          label={t('win.scoreboard')}
+          icon="podium"
+          onPress={() => dispatch({ type: 'SHOW_SCOREBOARD' })}
+          testID="round-scoreboard"
+          style={styles.gapTop}
+        />
+      )}
     </View>
   );
 }
@@ -321,8 +332,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, paddingVertical: SPACE.md, gap: SPACE.lg },
   header: { alignItems: 'center', gap: SPACE.sm },
   bigEmoji: { fontSize: 64, lineHeight: 76 },
-  words: { flexDirection: 'row', gap: SPACE.md },
-  wordCol: { flex: 1, gap: 2 },
   sectionLabel: { marginBottom: SPACE.sm },
   roleList: { paddingVertical: SPACE.xs, paddingHorizontal: SPACE.md },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md, minHeight: 52, paddingVertical: 4 },
@@ -331,5 +340,6 @@ const styles = StyleSheet.create({
   score: { minWidth: 36, textAlign: 'right' },
   histNum: { width: 32 },
   actions: { gap: SPACE.sm, marginTop: 'auto' },
+  gapTop: { marginTop: SPACE.sm },
   flex: { flex: 1 },
 });

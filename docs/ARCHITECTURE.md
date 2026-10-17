@@ -36,11 +36,13 @@ The reducer is pure. Every random decision is made from a `Seed` (4 × uint32) c
 5. **Builds intel**: Detective → one random non-hunted player; Secret Agent → a shuffled pair of one hunted + one other civilian-team player.
 6. **Speaking order**: players are listed in clockwise seating order; a random first speaker and a random direction (`setup.direction`: clockwise / anticlockwise) give the order (or a full shuffle with the *random order* twist). Both play styles use it.
 
-**Play styles** (`config.playStyle`): `simple` (default, "Words only") ends the on-phone flow after the reveal — `REVEAL_ANSWER` goes from `REVEAL_COMPLETE` to `ANSWER`; `full` runs clues, discussion, voting, final guess and scoring on the phone.
+**Play styles** (`config.playStyle`): `simple` (default, "Words only") ends the on-phone flow after the reveal; `full` runs clues, discussion, voting, final guess and scoring on the phone.
+
+**Voting** (`config.voting`, independent of the style): off → `REVEAL_ANSWER` goes to `ANSWER` (from `REVEAL_COMPLETE` in Words only, from `DISCUSSION` in the Full game). On → `START_VOTING` from the same phases, then the normal vote → elimination → guess → result flow. Words only with voting comes back to `REVEAL_COMPLETE` while the hunt continues, keeps no points (`keepsScore`), and starts the next round from `ROUND_RESULT` (no scoreboard). Configs saved before the switch existed get `voting = (playStyle === 'full')`, and choosing a style in Settings resets voting to that style's default.
 
 ### Secrets (`engine/secrets.ts`)
 
-`getSecretView(state, playerId)` returns only what that player may see (role card, word or none, category hint, teammates, intel). An unaware undercover gets `shownRole: 'civilian'` and a card **identical** to a civilian's. Screens call it at render time while the card is visible and never store the result; hiding unmounts the card.
+`getSecretView(state, playerId)` returns only what that player may see (role card, word or none, category hint, teammates, intel). An unaware undercover gets `shownRole: 'civilian'` and a card **identical** to a civilian's, and so does the Imposter in Lost and Questions modes (`imposterIsUnaware`), who sees `altWord`: a word from another topic (`pickWord` with `altFrom: 'otherTopic'`, preferring the group's other topics) or the other question of a pair (`engine/questions.ts`, data in `src/data/questions.ts`; `contentKind: 'question'`). Questions mode ignores topics and difficulty, always offers multiple-choice final guesses, and remembers recent pairs as `questions:<n>` keys. Screens call it at render time while the card is visible and never store the result; hiding unmounts the card.
 
 ### State machine (`engine/stateMachine.ts`, `engine/reducer.ts`)
 
@@ -52,14 +54,14 @@ The reducer is pure. Every random decision is made from a `Seed` (4 × uint32) c
 | `WORD_GENERATED` | roles dealt, shuffle animation | `ROLE_REVEAL_INTRO` |
 | `ROLE_REVEAL_INTRO` | "pass the phone to X" (no secret on screen) | `ROLE_REVEAL` |
 | `ROLE_REVEAL` | X's card visible | `ROLE_REVEAL_INTRO` (next player, or hide on background/back), `REVEAL_COMPLETE` |
-| `REVEAL_COMPLETE` | everyone has seen their card. Words-only style: shows the first speaker, direction and the hold-to-reveal button | `CLUE_PHASE` (full style), `ANSWER` (words-only style) |
+| `REVEAL_COMPLETE` | everyone has seen their card. Words-only style: shows the first speaker, direction and the hold-to-reveal button (voting off) or "Start the secret vote" (voting on) | `CLUE_PHASE` (full style), `ANSWER` (voting off), `VOTING` (words only, voting on) |
 | `CLUE_PHASE` | one clue each (`clueIndex`), laps allowed | `CLUE_PHASE`, `DISCUSSION` |
-| `DISCUSSION` | timer | `VOTING` |
+| `DISCUSSION` | timer | `VOTING` (voting on), `ANSWER` (voting off) |
 | `VOTING` | secret ballot, `voterIndex` | `VOTING`, `VOTE_RESULT` |
-| `VOTE_RESULT` | tally; tie → revote | `VOTING` (revote), `ELIMINATION` |
-| `ELIMINATION` | voted-out player's role revealed | `IMPOSTER_GUESS`, `ROUND_RESULT`, `CLUE_PHASE` / `DISCUSSION` (hunt continues) |
-| `IMPOSTER_GUESS` | caught imposter guesses | `IMPOSTER_GUESS`, `ROUND_RESULT`, `CLUE_PHASE` / `DISCUSSION` |
-| `ROUND_RESULT` | winner + roles + points | `SCOREBOARD` |
+| `VOTE_RESULT` | tally; tie → revote; everyone abstained → nobody out | `VOTING` (revote), `ELIMINATION`; nobody out → `ROUND_RESULT` or the next hunt step |
+| `ELIMINATION` | voted-out player's role revealed | `IMPOSTER_GUESS`, `ROUND_RESULT`, `CLUE_PHASE` / `DISCUSSION` / `REVEAL_COMPLETE` (hunt continues) |
+| `IMPOSTER_GUESS` | caught imposter guesses | `IMPOSTER_GUESS`, `ROUND_RESULT`, `CLUE_PHASE` / `DISCUSSION` / `REVEAL_COMPLETE` |
+| `ROUND_RESULT` | winner + roles + points | `SCOREBOARD` (full), `WORD_GENERATED` (words only) |
 | `SCOREBOARD` | running totals | `WORD_GENERATED` (next round), `GAME_COMPLETE` |
 | `GAME_COMPLETE` | final standings (round secrets dropped) | `IDLE`, `WORD_GENERATED` (play again) |
 | `ANSWER` | words-only style: who the Imposter(s) were and the word(s); no scores or stats | `WORD_GENERATED` (next round), `IDLE` |
@@ -68,11 +70,11 @@ Every in-game phase may exit to `IDLE`. `go()` refuses any transition not in the
 
 ### Voting & ties (`voting/`)
 
-Voters = alive players; you can't vote for yourself. `resolveVote` eliminates the unique leader; on a tie it requests a revote among the tied players (`tieRule: 'revote'`) or picks randomly (`'random'`). A tie during a revote is always broken randomly, so voting terminates.
+Voters = alive players; you can't vote for yourself. A vote puts out `voting.picks` players (`START_VOTING { picks }`, 1 … `maxVoteOut(round)` = hidden players still at large; the UI defaults to all of them); every ballot names exactly that many different players (`votes: Record<voter, PlayerId[]>`, `[]` = abstained). The `picks` players with the most votes are out; on a tie for the last place(s) the clear winners go into `alreadyOut` and only the tied players are revoted for the places left (`revotePicks`). `VOTE_OUT_LOUD { playerIds }` puts players out without a phone vote (Elimination `outLoud: true`, no ballots). Players out in the same vote share `Elimination.vote`; `getNextStep` checks that batch for the Jester first, then gives each caught hidden player their own final guess (`START_GUESS` also from `IMPOSTER_GUESS`), then evaluates the hunt. Scoring counts each vote's ballots once, one point award per pick on a hidden player. With `config.allowAbstain` a voter may abstain (stored as `ABSTAIN`, the empty string, which is never a player id; counted in `tally.abstained`, never as a vote for anyone, never scored). `resolveVote` eliminates the unique leader; on a tie it requests a revote among the tied players (`tieRule: 'revote'`) or picks randomly among the tied players only (`'random'`). A tie during a revote is always broken randomly, so voting terminates. If nobody gets a single vote (everyone abstained), `nobodyOut` is set: nobody is eliminated and `round.skippedVotes` goes up — the vote is used up exactly like a vote that removed a civilian.
 
 ### Win rules (`engine/outcome.ts`)
 
-`eliminationsAllowed` = number of hidden players. After each elimination:
+`eliminationsAllowed` = number of hidden players; votes left = allowed − eliminations − `skippedVotes`. After each elimination (or a vote with nobody out):
 
 - Jester out → round ends, winners `jester` + `imposters`.
 - Hidden player out and final guess enabled → `IMPOSTER_GUESS`; a correct guess wins for the hidden team.
@@ -146,6 +148,9 @@ See the README section; modes are data (`ModeDefinition`) consumed by setup and 
 | `tests/engine/properties.test.ts` | fast-check invariants, 1,500 random full games, randomness distribution (χ²) |
 | `tests/engine/persistAndText.test.ts` | save/load, corruption, restore safety, sanitising, guess matching |
 | `tests/state` | stats, sanitisers, backup import/export, persistent store failure recovery, kill-and-resume, logger redaction |
+| `tests/engine/voting.test.ts` | several players out per vote (3 imposters in one vote, chained guesses, jester in the batch, a civilian in the batch, boundary-tie revotes for the places left, validation), caught out loud, voting on/off in both styles, 3p/5p/multi-imposter results, civilian vs imposter voted out, 2- and 3-way ties, revotes, random ties only among the tied, abstaining on/off, everyone abstaining, double taps, old saves |
+| `tests/ui/voting.test.tsx` | private ballots through the UI: choosing how many to vote out, multi-pick ballots, caught out loud, batch reveal, chained final guesses, intro, no early results, abstain, back button / backgrounding close an open ballot or guess, double-tap lock-in, voting off, Game settings, Quick Play keeping saved settings, card typography |
+| `tests/ui/secretWord.test.tsx` | Title Case rules (acronyms, brands, minor words, Indic scripts), initials, size fitting on narrow screens and with large system fonts |
 | `tests/ui/app.test.tsx` | renders the real router and plays through the UI: full game, config → game navigation, background hide, back button, timer pause on background, player validation, custom category, rules/stats/settings, safe `/game` fallback |
 | `tests/ui/hooks.test.tsx` | countdown (finish, pause/resume/+time, background pause, single interval, no leaks, stopwatch), anti double-tap arming |
 

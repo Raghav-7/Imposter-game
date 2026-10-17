@@ -9,6 +9,7 @@ import { Button } from '../../components/Button';
 import { Card, Divider } from '../../components/controls';
 import { HoldButton } from '../../components/HoldButton';
 import { toast } from '../../components/Overlay';
+import { eliminationsLeft, huntedRemaining } from '../../game/engine/outcome';
 import { ROLES } from '../../game/roles';
 import type { GameState, PlayerId } from '../../game/types';
 import { haptic } from '../../haptics';
@@ -20,10 +21,14 @@ import { setupIssueMessage } from '../../utils/messages';
 import { useGuardedCallback } from '../../utils/useGuardedCallback';
 import { TwistBanner } from './CluePhase';
 import { goHome } from './ResultPhases';
+import { OutLoudButton, useVoteSize, VoteSizePicker } from './VoteStart';
+import { WordsCard } from './WordsCard';
 
 /**
  * Words-only style, after everyone has seen their card: who starts, which way
- * to go, then the phone goes down until someone holds the button for the answer.
+ * to go, then the phone goes down. Voting off: someone holds the button for the
+ * answer. Voting on: the group starts the secret vote (and comes back here while
+ * the hunt for more hidden players continues).
  */
 export function SimpleStartPhase({ state, onPeek }: { state: GameState; onPeek?: () => void }) {
   const t = useT();
@@ -34,13 +39,32 @@ export function SimpleStartPhase({ state, onPeek }: { state: GameState; onPeek?:
   const starter = nameOf(order[0]!);
   const scrambled = round.setup.modifiers.includes('randomOrder');
   const clockwise = round.setup.direction === 'clockwise';
+  const voting = state.config.voting;
+  const questions = state.config.mode === 'questions';
+  const hunting = round.eliminations.length > 0 || round.skippedVotes > 0;
+  const hidden = huntedRemaining(round).length;
+  const { size, setSize, max } = useVoteSize(round);
+  const startVote = useGuardedCallback(() => dispatch({ type: 'START_VOTING', picks: size }), 1000);
 
   return (
     <View style={styles.root}>
       <ScrollView style={styles.answerScroll} contentContainerStyle={styles.top}>
         <AppText variant="label" tone="muted" align="center">
-          {t('simple.title')}
+          {hunting ? t('simple.keepTalking') : questions ? t('simple.titleQuestions') : t('simple.title')}
         </AppText>
+        {hunting ? (
+          <Card tone="danger" style={styles.hunt}>
+            <AppText variant="bodyStrong" align="center" testID="simple-hunt">
+              {t('discussion.hunt', {
+                hidden:
+                  state.config.mode === 'undercover'
+                    ? t('common.undercovers_other', { count: hidden })
+                    : t('common.imposters_other', { count: hidden }),
+                votes: t('discussion.votesLeft_other', { count: eliminationsLeft(round) }),
+              })}
+            </AppText>
+          </Card>
+        ) : null}
         <PopIn>
           <Card tone="primary" style={styles.startCard}>
             <AppText
@@ -83,23 +107,52 @@ export function SimpleStartPhase({ state, onPeek }: { state: GameState; onPeek?:
         </View>
         <TwistBanner state={state} />
         <AppText variant="bodyStrong" tone="muted" align="center" style={styles.phoneDown}>
-          {t('simple.phoneDown')}
+          {questions
+            ? voting
+              ? t('simple.phoneDownQuestionsVote')
+              : t('simple.phoneDownQuestions')
+            : voting
+              ? t('simple.phoneDownVote')
+              : t('simple.phoneDown')}
         </AppText>
       </ScrollView>
 
       <View style={styles.actions}>
-        <AppText variant="caption" tone="faint" align="center">
-          {t('simple.holdHint')}
-        </AppText>
-        <HoldButton
-          label={t('simple.holdReveal')}
-          holdingLabel={t('simple.holding')}
-          onComplete={() => dispatch({ type: 'REVEAL_ANSWER' })}
-          testID="answer-hold"
-        />
+        {voting ? (
+          <>
+            {max > 1 ? (
+              <VoteSizePicker size={size} max={max} onChange={setSize} />
+            ) : (
+              <AppText variant="caption" tone="faint" align="center">
+                {t('simple.voteHint')}
+              </AppText>
+            )}
+            <Button
+              label={t('simple.startVote')}
+              icon="hand-left"
+              variant="danger"
+              haptics="confirm"
+              onPress={startVote}
+              testID="simple-vote"
+            />
+            <OutLoudButton state={state} />
+          </>
+        ) : (
+          <>
+            <AppText variant="caption" tone="faint" align="center">
+              {t('simple.holdHint')}
+            </AppText>
+            <HoldButton
+              label={t('simple.holdReveal')}
+              holdingLabel={t('simple.holding')}
+              onComplete={() => dispatch({ type: 'REVEAL_ANSWER' })}
+              testID="answer-hold"
+            />
+          </>
+        )}
         {onPeek ? (
           <Button
-            label={t('peek.button')}
+            label={questions ? t('peek.buttonQuestion') : t('peek.button')}
             variant="ghost"
             size="md"
             icon="eye-outline"
@@ -172,29 +225,7 @@ export function AnswerPhase({ state }: { state: GameState }) {
         ) : null}
 
         <FadeIn delay={250}>
-          <Card tone="primary" style={styles.words}>
-            <View style={styles.wordCol}>
-              <AppText variant="label" tone="muted" align="center">
-                {t('win.secretWord')}
-              </AppText>
-              <AppText variant="title" align="center" numberOfLines={2} adjustsFontSizeToFit testID="answer-word">
-                {round.setup.word.word}
-              </AppText>
-              <AppText variant="caption" tone="faint" align="center">
-                {round.setup.word.categoryName}
-              </AppText>
-            </View>
-            {round.setup.altWord ? (
-              <View style={styles.wordCol}>
-                <AppText variant="label" tone="muted" align="center">
-                  {t('win.undercoverWord')}
-                </AppText>
-                <AppText variant="title" align="center" numberOfLines={2} adjustsFontSizeToFit>
-                  {round.setup.altWord}
-                </AppText>
-              </View>
-            ) : null}
-          </Card>
+          <WordsCard state={state} testID="answer-word" />
         </FadeIn>
 
         <FadeIn delay={400}>
@@ -250,12 +281,11 @@ const styles = StyleSheet.create({
   orderWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
   chip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: RADIUS.pill, maxWidth: 170 },
   phoneDown: { marginTop: SPACE.sm },
+  hunt: { paddingVertical: SPACE.sm },
   actions: { gap: SPACE.sm },
   answerScroll: { flex: 1 },
   answerTop: { gap: SPACE.lg, paddingBottom: SPACE.md },
   reveal: { alignItems: 'center', gap: SPACE.xs },
-  words: { flexDirection: 'row', gap: SPACE.md },
-  wordCol: { flex: 1, gap: 2 },
   sectionLabel: { marginBottom: SPACE.sm },
   list: { paddingVertical: SPACE.xs, paddingHorizontal: SPACE.md },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.md, minHeight: 48 },

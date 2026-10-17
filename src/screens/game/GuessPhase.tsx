@@ -12,9 +12,13 @@ import { clampLength, MAX_WORD_LENGTH } from '../../game/engine/text';
 import type { GameState } from '../../game/types';
 import { haptic } from '../../haptics';
 import { useT } from '../../localization';
+import { formatDisplayWord } from '../../utils/wordDisplay';
 import { dispatch } from '../../state/gameStore';
 import { RADIUS, SPACE, TOUCH, usePalette } from '../../theme';
+import { HuntActions } from './EliminationPhase';
 import { PassPhoneGate } from './PassPhoneGate';
+import { usePrivateScreen } from './privateScreen';
+import { SecretWord } from './SecretWord';
 
 /**
  * IMPOSTER_GUESS. The word is never shown before the guess is locked in.
@@ -33,8 +37,17 @@ export function GuessPhase({ state }: { state: GameState }) {
   const [typed, setTyped] = useState('');
 
   const choices = round.setup.guessChoices;
-  const useChoices = state.config.guessStyle === 'choice' && choices.length >= 3;
-  const isUndercover = round.setup.roles[guesserId] === 'undercover';
+  const questions = state.config.mode === 'questions';
+  // Nobody can type a whole question back, so Questions mode always offers choices.
+  const useChoices = (state.config.guessStyle === 'choice' || questions) && choices.length >= 3;
+  // Undercover and Lost players had a word of their own: they guess everyone else's.
+  const hadOwnWord = round.setup.roles[guesserId] === 'undercover' || state.config.mode === 'lost';
+  const label = (c: string) => (questions ? c : formatDisplayWord(c));
+  // Hardware back / "leave game?" close the open guess first.
+  usePrivateScreen(ready && !guess, () => {
+    setReady(false);
+    setChoice(null);
+  });
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
@@ -70,11 +83,15 @@ export function GuessPhase({ state }: { state: GameState }) {
           </PopIn>
           <Card tone="primary" style={styles.wordCard}>
             <AppText variant="label" tone="muted" align="center">
-              {t('guess.theWordWas')}
+              {questions ? t('guess.theQuestionWas') : t('guess.theWordWas')}
             </AppText>
-            <AppText variant="display" align="center" numberOfLines={2} adjustsFontSizeToFit>
-              {round.setup.word.word.toUpperCase()}
-            </AppText>
+            {questions ? (
+              <AppText variant="title" align="center">
+                {round.setup.word.word}
+              </AppText>
+            ) : (
+              <SecretWord word={round.setup.word.word} size="medium" />
+            )}
           </Card>
           {guess.acceptedByGroup ? (
             <AppText variant="caption" tone="muted" align="center">
@@ -100,21 +117,17 @@ export function GuessPhase({ state }: { state: GameState }) {
               testID="guess-results"
             />
           ) : null}
-          {step.kind === 'continue' ? (
-            <>
-              <Button
-                label={t('elim.discuss')}
-                icon="people"
-                onPress={() => dispatch({ type: 'CONTINUE_HUNT', to: 'discussion' })}
-              />
-              <Button
-                label={t('elim.moreClues')}
-                variant="secondary"
-                size="md"
-                icon="chatbubbles"
-                onPress={() => dispatch({ type: 'CONTINUE_HUNT', to: 'clues' })}
-              />
-            </>
+          {step.kind === 'continue' ? <HuntActions state={state} /> : null}
+          {step.kind === 'guess' ? (
+            // Another imposter caught in the same vote gets their own guess.
+            <Button
+              label={t('elim.giveGuess', {
+                name: state.players.find((pl) => pl.id === step.playerId)?.name ?? '?',
+              })}
+              icon="help-circle"
+              onPress={() => dispatch({ type: 'START_GUESS' })}
+              testID="guess-next"
+            />
           ) : null}
         </View>
       </View>
@@ -145,7 +158,7 @@ export function GuessPhase({ state }: { state: GameState }) {
     <View style={styles.root}>
       <View style={styles.form}>
         <AppText variant="title" align="center" accessibilityRole="header">
-          {isUndercover ? t('guess.questionUndercover') : t('guess.question')}
+          {questions ? t('guess.questionQuestions') : hadOwnWord ? t('guess.questionUndercover') : t('guess.question')}
         </AppText>
         {useChoices ? (
           <View style={styles.choices} accessibilityRole="radiogroup">
@@ -160,7 +173,7 @@ export function GuessPhase({ state }: { state: GameState }) {
                   }}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: sel }}
-                  accessibilityLabel={c}
+                  accessibilityLabel={label(c)}
                   testID={`guess-choice-${c}`}
                   style={[
                     styles.choice,
@@ -172,8 +185,8 @@ export function GuessPhase({ state }: { state: GameState }) {
                     size={20}
                     color={sel ? p.primary : p.textFaint}
                   />
-                  <AppText variant="heading" style={styles.flex} numberOfLines={2}>
-                    {c}
+                  <AppText variant={questions ? 'bodyStrong' : 'heading'} style={styles.flex} numberOfLines={3}>
+                    {label(c)}
                   </AppText>
                 </Pressable>
               );

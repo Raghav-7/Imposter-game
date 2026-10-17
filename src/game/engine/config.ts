@@ -24,8 +24,22 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   chaosModifierCount: 2,
   scoring: DEFAULT_SCORING,
   playStyle: 'simple',
-  imposterHint: true,
+  // Off by default: the Imposter gets nothing unless the group turns the hint on.
+  imposterHint: false,
+  // Words only (the default) decides out loud; picking Full game turns voting on.
+  voting: false,
+  allowAbstain: false,
 };
+
+/** Voting a play style starts with: Full game votes on the phone, Words only out loud. */
+export function defaultVotingFor(playStyle: GameConfig['playStyle']): boolean {
+  return playStyle === 'full';
+}
+
+/** Points are only kept in the Full game with voting on; Words only never keeps score. */
+export function keepsScore(config: Pick<GameConfig, 'playStyle' | 'voting' | 'scoring'>): boolean {
+  return config.playStyle === 'full' && config.voting && config.scoring.enabled;
+}
 
 /** Quick Play: zero-config sensible game. */
 export const QUICK_PLAY_CONFIG: GameConfig = {
@@ -70,8 +84,11 @@ export function sanitizeConfig(raw: unknown): GameConfig {
   const r = isRecord(raw) ? raw : {};
   const d = DEFAULT_GAME_CONFIG;
   const roles = isRecord(r.roles) ? r.roles : {};
+  const playStyle = oneOf(r.playStyle, ['simple', 'full'] as const, d.playStyle);
+  // Blind (until 1.3) was Classic with no hint; saved Blind settings keep playing the same way.
+  const wasBlind = r.mode === 'blind';
   return {
-    mode: oneOf(r.mode, MODE_ORDER, d.mode),
+    mode: wasBlind ? 'classic' : oneOf(r.mode, MODE_ORDER, d.mode),
     imposterCount: intIn(r.imposterCount, 1, MAX_IMPOSTERS, d.imposterCount),
     categoryId: typeof r.categoryId === 'string' && r.categoryId.length > 0 ? r.categoryId : d.categoryId,
     excludedCategories: Array.isArray(r.excludedCategories)
@@ -89,7 +106,10 @@ export function sanitizeConfig(raw: unknown): GameConfig {
     roles: { detective: bool(roles.detective, false), jester: bool(roles.jester, false) },
     chaosModifierCount: oneOf(r.chaosModifierCount, [1, 2] as const, d.chaosModifierCount),
     scoring: sanitizeScoring(r.scoring),
-    playStyle: oneOf(r.playStyle, ['simple', 'full'] as const, d.playStyle),
-    imposterHint: bool(r.imposterHint, d.imposterHint),
+    playStyle,
+    imposterHint: wasBlind ? false : bool(r.imposterHint, d.imposterHint),
+    // Configs saved before the Voting switch keep their behaviour: Full game voted, Words only didn't.
+    voting: bool(r.voting, defaultVotingFor(playStyle)),
+    allowAbstain: bool(r.allowAbstain, d.allowAbstain),
   };
 }

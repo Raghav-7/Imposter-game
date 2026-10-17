@@ -6,6 +6,7 @@ import { AppText } from '../../components/AppText';
 import { PopIn } from '../../components/anim';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/controls';
+import { HoldButton } from '../../components/HoldButton';
 import { eliminationsLeft, huntedRemaining } from '../../game/engine/outcome';
 import type { GameState } from '../../game/types';
 import { haptic } from '../../haptics';
@@ -14,6 +15,7 @@ import { useT } from '../../localization';
 import { dispatch } from '../../state/gameStore';
 import { SPACE } from '../../theme';
 import { TimerDisplay } from './TimerDisplay';
+import { OutLoudButton, useVoteSize, VoteSizePicker } from './VoteStart';
 
 export function DiscussionPhase({ state, onPeek }: { state: GameState; onPeek?: () => void }) {
   const t = useT();
@@ -44,7 +46,10 @@ export function DiscussionPhase({ state, onPeek }: { state: GameState; onPeek?: 
 
   const hidden = huntedRemaining(round).length;
   const votes = eliminationsLeft(round);
-  const showHunt = round.eliminationsAllowed > 1;
+  const voting = state.config.voting;
+  const { size, setSize, max } = useVoteSize(round);
+  // With voting off there are no on-phone votes to count.
+  const showHunt = voting && round.eliminationsAllowed > 1;
   const peekers = round.peeks.map((id) => state.players.find((p) => p.id === id)?.name).filter((n): n is string => !!n);
 
   return (
@@ -71,6 +76,7 @@ export function DiscussionPhase({ state, onPeek }: { state: GameState; onPeek?: 
             </AppText>
           </Card>
         ) : null}
+        {voting ? <VoteSizePicker size={size} max={max} onChange={setSize} /> : null}
         <View style={styles.timer}>
           {c.finished ? (
             <AppText variant="title" tone="warning" align="center" accessibilityLiveRegion="assertive">
@@ -118,17 +124,33 @@ export function DiscussionPhase({ state, onPeek }: { state: GameState; onPeek?: 
             ) : null}
           </View>
         ) : null}
-        <Button
-          label={t('discussion.vote')}
-          icon="hand-left"
-          variant={c.finished ? 'primary' : 'danger'}
-          onPress={() => dispatch({ type: 'START_VOTING' })}
-          haptics="confirm"
-          testID="discussion-vote"
-        />
+        {voting ? (
+          <Button
+            label={t('discussion.vote')}
+            icon="hand-left"
+            variant={c.finished ? 'primary' : 'danger'}
+            onPress={() => dispatch({ type: 'START_VOTING', picks: size })}
+            haptics="confirm"
+            testID="discussion-vote"
+          />
+        ) : (
+          <>
+            <AppText variant="caption" tone="faint" align="center">
+              {t('simple.holdHint')}
+            </AppText>
+            {/* Voting off: the group votes out loud, then holds for the answer. */}
+            <HoldButton
+              label={t('simple.holdReveal')}
+              holdingLabel={t('simple.holding')}
+              onComplete={() => dispatch({ type: 'REVEAL_ANSWER' })}
+              testID="answer-hold"
+            />
+          </>
+        )}
+        {voting ? <OutLoudButton state={state} /> : null}
         {onPeek ? (
           <Button
-            label={t('peek.button')}
+            label={state.config.mode === 'questions' ? t('peek.buttonQuestion') : t('peek.button')}
             variant="ghost"
             size="md"
             icon="eye-outline"

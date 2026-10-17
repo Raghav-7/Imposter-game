@@ -1,16 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import { renderRouter } from 'expo-router/testing-library';
-import { AppState, BackHandler } from 'react-native';
 
 import { configStore, customCategoriesStore, rosterStore } from '../../src/state/appData';
 import { __resetGameStoreForTests, getGameState, startNewGame } from '../../src/state/gameStore';
 import { buildWordSource } from '../../src/state/wordSource';
 import { translate } from '../../src/localization';
-import { settingsStore } from '../../src/state/settings';
 import { statsStore } from '../../src/state/stats';
-import { DEFAULT_GAME_CONFIG } from '../../src/game';
-import { TIMING } from '../../src/utils/timing';
+import { formatDisplayWord } from '../../src/utils/wordDisplay';
+import { background, installUiHarness, press, pressBack, renderApp, startGameUI, tick } from './harness';
 
 /**
  * End-to-end UI tests: render the real app (expo-router file routes) and play
@@ -18,84 +15,7 @@ import { TIMING } from '../../src/utils/timing';
  */
 
 jest.setTimeout(120_000);
-
-type Listener = (state: string) => void;
-let appStateListeners: Listener[] = [];
-let backListeners: (() => boolean)[] = [];
-
-beforeEach(async () => {
-  // Drive the UI without component-local delays (their logic is covered in hooks.test.tsx).
-  Object.assign(TIMING, { gateArmMs: 0, hideArmMs: 0, voteLockedMs: 0, dealMs: 0, holdRevealMs: 0 });
-  await AsyncStorage.clear();
-  __resetGameStoreForTests();
-  settingsStore.set({
-    ...settingsStore.get(),
-    onboardingDone: true,
-    soundEffects: false,
-    haptics: false,
-    music: false,
-    motion: 'reduced',
-  });
-  rosterStore.set([
-    { id: 'a', name: 'Raghav' },
-    { id: 'b', name: 'Arun' },
-    { id: 'c', name: 'Priya' },
-    { id: 'd', name: 'Karthik' },
-  ]);
-  configStore.set({ ...DEFAULT_GAME_CONFIG, discussionTimerSec: 30, playStyle: 'full' });
-  customCategoriesStore.set([]);
-  statsStore.reset();
-  appStateListeners = [];
-  backListeners = [];
-  jest.spyOn(AppState, 'addEventListener').mockImplementation(((_type: string, l: Listener) => {
-    appStateListeners.push(l);
-    return { remove: () => (appStateListeners = appStateListeners.filter((x) => x !== l)) };
-  }) as never);
-  jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_type: string, l: () => boolean) => {
-    backListeners.push(l);
-    return { remove: () => (backListeners = backListeners.filter((x) => x !== l)) };
-  }) as never);
-});
-
-afterEach(() => {
-  jest.restoreAllMocks();
-});
-
-const tick = async (ms = 1000) => {
-  await act(async () => {
-    jest.advanceTimersByTime(ms);
-  });
-};
-/** Presses once the element exists and is enabled (renders may land a tick late under fake timers). */
-const press = async (testID: string, wait = 600) => {
-  for (let i = 0; i < 40; i++) {
-    const el = screen.queryByTestId(testID);
-    if (el && !el.props.accessibilityState?.disabled) break;
-    await tick(100);
-  }
-  await fireEvent.press(screen.getByTestId(testID));
-  await tick(wait);
-};
-const background = async () => {
-  await act(async () => appStateListeners.slice().forEach((l) => l('background')));
-};
-const pressBack = async () => {
-  await act(async () => {
-    for (const l of backListeners.slice().reverse()) if (l()) break;
-  });
-};
-
-/** Starts a game through the store (as the config screen does) and opens the game route. */
-async function startGameUI(players = rosterStore.get()) {
-  const source = buildWordSource((k, p) => translate('en', k, p), customCategoriesStore.get());
-  expect(startNewGame(players, configStore.get(), source)).toEqual({ ok: true });
-  await renderApp('/game');
-}
-
-async function renderApp(url = '/') {
-  await renderRouter('./src/app', { initialUrl: url });
-  await tick(1500);
-}
+installUiHarness();
 
 describe('app UI', () => {
   it('home shows primary actions', async () => {
@@ -105,15 +25,16 @@ describe('app UI', () => {
     expect(screen.getByText('Rules')).toBeTruthy();
   });
 
-  it('home hint toggle turns the imposter hint off for Quick Play', async () => {
+  it('home hint toggle: off by default, and Quick Play follows it', async () => {
     await renderApp();
-    expect(configStore.get().imposterHint).toBe(true);
-    await fireEvent.press(screen.getByTestId('home-hint'));
     expect(configStore.get().imposterHint).toBe(false);
     expect(screen.getByText('No hint. Imposter gets nothing')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('home-hint'));
+    expect(configStore.get().imposterHint).toBe(true);
+    expect(screen.getByText('Imposter sees the category')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('home-quick'));
     await tick(500);
-    expect(getGameState().config.imposterHint).toBe(false);
+    expect(getGameState().config.imposterHint).toBe(true);
   });
 
   it('plays a full classic game through the UI and records stats', async () => {
@@ -131,8 +52,8 @@ describe('app UI', () => {
       expect(title).toBe(roles[players[i]!.id] === 'imposter' ? "YOU'RE THE IMPOSTER" : 'CIVILIAN');
       if (roles[players[i]!.id] === 'imposter') expect(screen.queryByTestId('role-word')).toBeNull();
       else
-        expect(screen.getByTestId('role-word').props.children).toBe(
-          getGameState().round!.setup.word.word.toUpperCase(),
+        expect(screen.getByTestId('role-word').props.accessibilityLabel).toBe(
+          formatDisplayWord(getGameState().round!.setup.word.word),
         );
       await tick(800);
       await press('reveal-hide', 300);
@@ -179,7 +100,7 @@ describe('app UI', () => {
   });
 
   it('words-only style: reveal, who starts, hold for the answer, next round (no scores)', async () => {
-    configStore.set({ ...configStore.get(), playStyle: 'simple' });
+    configStore.set({ ...configStore.get(), playStyle: 'simple', voting: false });
     await startGameUI();
     await tick(2000);
     const n = getGameState().players.length;
@@ -201,7 +122,7 @@ describe('app UI', () => {
     expect(getGameState().phase).toBe('ANSWER');
     const imposter = getGameState().players.find((p) => round.setup.roles[p.id] === 'imposter')!.name;
     expect(screen.getByTestId('answer-imposters').props.children).toBe(imposter);
-    expect(screen.getByTestId('answer-word').props.children).toBe(round.setup.word.word);
+    expect(screen.getByTestId('answer-word').props.accessibilityLabel).toBe(formatDisplayWord(round.setup.word.word));
     expect(statsStore.get().totals.rounds).toBe(0);
     await press('answer-next', 600);
     expect(getGameState().phase).not.toBe('ANSWER');
@@ -325,14 +246,20 @@ describe('app UI', () => {
     }
   });
 
-  it('category toggles: presets and switches control Random & Mixed', async () => {
+  it('categories screen has no second topic selector; it links to the one topic picker', async () => {
     await renderApp('/categories');
-    await press('preset-everyday', 200);
+    // No duplicate presets or per-topic switches here any more.
+    expect(screen.queryByTestId('preset-everyday')).toBeNull();
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
+    expect(screen.getByTestId('categories-topics')).toBeTruthy();
+    expect(screen.getByText(/^28 of 28 topics on$/)).toBeTruthy();
+    await press('categories-topics', 600);
+    // The picker's quick picks change what Random & Mixed draw from.
+    await press('topics-preset-everyday', 200);
     expect(configStore.get().excludedCategories).toEqual(expect.arrayContaining(['movies', 'cricket', 'tamil_movies']));
-    expect(screen.getByText(/of 28 topics on/)).toBeTruthy();
-    await fireEvent.press(screen.getByRole('switch', { name: /^Food./ }));
+    await press('category-food', 200);
     expect(configStore.get().excludedCategories).toContain('food');
-    await press('preset-all', 200);
+    await press('topics-preset-all', 200);
     expect(configStore.get().excludedCategories).toEqual([]);
   });
 

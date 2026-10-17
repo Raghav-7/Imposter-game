@@ -89,7 +89,12 @@ export function pickWord(
   config: Pick<GameConfig, 'categoryId' | 'difficulty'> & Partial<PoolOptions>,
   source: WordSource,
   rng: Rng,
-  options: { needsAltWord: boolean; recentKeys?: readonly string[] },
+  options: {
+    needsAltWord: boolean;
+    /** 'related' (default): a similar word. 'otherTopic': any word from a different topic (Lost). */
+    altFrom?: 'related' | 'otherTopic';
+    recentKeys?: readonly string[];
+  },
 ): { ok: true; value: PickedWord } | { ok: false; error: PickWordError } {
   const pool = resolveCategoryPool(config.categoryId, source, config);
   if (!pool) return { ok: false, error: 'categoryMissing' };
@@ -113,7 +118,8 @@ export function pickWord(
     w.related.some((r) => normalizeKey(r) !== normalizeKey(w.word)) ||
     siblingsOf(w).some((s) => normalizeKey(s.word) !== normalizeKey(w.word));
 
-  if (options.needsAltWord) {
+  const otherTopic = options.altFrom === 'otherTopic';
+  if (options.needsAltWord && !otherTopic) {
     candidates = candidates.filter(canAlt);
     if (candidates.length === 0) return { ok: false, error: 'needsTwoWords' };
   }
@@ -127,7 +133,10 @@ export function pickWord(
   const siblings = siblingsOf(chosen).filter((s) => normalizeKey(s.word) !== chosenKey);
 
   let altWord: string | null = null;
-  if (options.needsAltWord) {
+  if (options.needsAltWord && otherTopic) {
+    altWord = otherTopicWord(rng, chosen, categoryOf(chosen)?.id ?? chosen.categoryId, pool, source, config.difficulty);
+    if (altWord === null) return { ok: false, error: 'needsTwoWords' };
+  } else if (options.needsAltWord) {
     const related = chosen.related.filter((r) => normalizeKey(r) !== chosenKey);
     altWord = related.length > 0 ? pick(rng, related)! : (pick(rng, siblings)?.word ?? null);
     if (altWord === null) return { ok: false, error: 'needsTwoWords' };
@@ -148,6 +157,30 @@ export function pickWord(
       guessChoices,
     },
   };
+}
+
+/**
+ * Lost mode's decoy: a word from a different topic, preferably one of the group's own topics
+ * (so it's a word they know) and of the same difficulty.
+ */
+function otherTopicWord(
+  rng: Rng,
+  chosen: WordEntry,
+  ownCategory: string,
+  pool: CategoryPool,
+  source: WordSource,
+  difficulty: Difficulty,
+): string | null {
+  const usable = (c: CategorySource) => c.id !== ownCategory && c.words.length > 0;
+  const fromPool = pool.categories.filter(usable);
+  const category = pick(rng, fromPool.length > 0 ? fromPool : source.categories.filter(usable));
+  if (!category) return null;
+  const key = normalizeKey(chosen.word);
+  const words = preferNonEmpty(
+    category.words.filter((w) => normalizeKey(w.word) !== key),
+    (w) => w.difficulty === difficulty,
+  );
+  return pick(rng, words)?.word ?? null;
 }
 
 function preferNonEmpty<T>(items: T[], predicate: (item: T) => boolean): T[] {

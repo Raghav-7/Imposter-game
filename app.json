@@ -2,7 +2,7 @@
   "expo": {
     "name": "Imposter Party",
     "slug": "imposter-party",
-    "version": "1.0.0",
+    "version": "1.4.0",
     "scheme": "imposterparty",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,14 +12,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.imposterparty.game",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.imposterparty.game",
-      "versionCode": 1,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#4B2BC2",
         "foregroundImage": "./assets/android-icon-foreground.png",

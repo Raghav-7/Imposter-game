@@ -1,4 +1,4 @@
-import { MODES } from '../modes';
+import { imposterIsUnaware, MODES } from '../modes';
 import type { GameState, PlayerId, SecretView } from '../types';
 
 /**
@@ -16,6 +16,7 @@ export function getSecretView(state: GameState, playerId: PlayerId): SecretView 
 
   const view: SecretView = {
     playerId,
+    contentKind: mode.oddContent === 'question' ? 'question' : 'word',
     shownRole: role,
     word: null,
     categoryHint: null,
@@ -25,6 +26,13 @@ export function getSecretView(state: GameState, playerId: PlayerId): SecretView 
 
   switch (role) {
     case 'imposter': {
+      if (imposterIsUnaware(state.config.mode)) {
+        // Lost / Questions: a word from another topic or a different question, and a card that
+        // looks exactly like a civilian's. They don't know they're the Imposter, so no teammates.
+        view.word = setup.altWord;
+        view.shownRole = 'civilian';
+        break;
+      }
       const seesCategory =
         state.config.imposterHint && (mode.imposterSeesCategory || setup.modifiers.includes('imposterCategory'));
       view.categoryHint = seesCategory ? setup.word.categoryName || null : null;

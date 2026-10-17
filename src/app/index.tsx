@@ -89,7 +89,7 @@ export default function HomeScreen() {
             name: t('players.defaultName', { index: i + 1 }),
           }));
     if (roster.length < 3) rosterStore.set(players);
-    // Quick Play keeps the group's play style and topic switches.
+    // Quick Play keeps the group's play style, voting rules and topic switches.
     const saved = configStore.get();
     const res = startNewGame(
       players,
@@ -99,8 +99,14 @@ export default function HomeScreen() {
         excludedCategories: saved.excludedCategories,
         customInRandom: saved.customInRandom,
         imposterHint: saved.imposterHint,
+        voting: saved.voting,
+        allowAbstain: saved.allowAbstain,
+        tieRule: saved.tieRule,
+        finalGuess: saved.finalGuess,
+        guessStyle: saved.guessStyle,
       },
       source,
+      { remember: false },
     );
     if (res.ok) {
       setSaved(null);

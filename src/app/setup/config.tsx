@@ -31,6 +31,7 @@ export default function ConfigScreen() {
   const custom = useCustomCategories();
   const source = useWordSource();
   const [advanced, setAdvanced] = useState(false);
+  const [votingOptions, setVotingOptions] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,13 +51,16 @@ export default function ConfigScreen() {
   }, [config.imposterCount, config.roles, max, jesterAllowed]);
 
   const set = (patch: Partial<GameConfig>) => updateGameConfig(patch);
-  // Timers, voting and scoring only apply when the whole game is played on the phone.
+  // Timers and scoring only apply when the whole game is played on the phone.
   const full = config.playStyle === 'full';
+  const voting = config.voting;
   const setScoring = (patch: Partial<ScoringConfig>) => set({ scoring: { ...config.scoring, ...patch } });
 
   const issues = validateSetup(players, config, source);
   const category = describeTopics(config, t, custom, source);
   const isCustom = config.categoryId.startsWith('custom:');
+  // Questions mode has its own question list: no topics, no difficulty.
+  const questions = config.mode === 'questions';
   const hiddenLabel = config.mode === 'undercover' ? t('config.undercovers') : t('config.imposters');
   const countLabel = (c: number) =>
     config.mode === 'undercover'
@@ -109,7 +113,6 @@ export default function ConfigScreen() {
       <View style={styles.summary}>
         <Pill label={t('common.players_other', { count: n })} tone="primary" />
         <Pill label={countLabel(Math.min(config.imposterCount, max))} tone="danger" />
-        <Pill label={`${category.emoji} ${category.name}`} />
       </View>
 
       <AppText variant="caption" tone="muted" style={styles.styleNote}>
@@ -170,42 +173,55 @@ export default function ConfigScreen() {
         />
       </Card>
 
-      <SectionTitle>{t('config.category')}</SectionTitle>
-      <Pressable
-        onPress={() => router.push('/setup/category')}
-        accessibilityRole="button"
-        accessibilityLabel={`${t('config.category')}: ${category.name}`}
-        testID="config-category"
-        style={({ pressed }) => [
-          styles.categoryRow,
-          { backgroundColor: pressed ? p.surfaceHigh : p.surface, borderColor: category.exists ? p.border : p.danger },
-        ]}
-      >
-        <AppText style={styles.categoryEmoji}>{category.emoji}</AppText>
-        <View style={styles.flex}>
-          <AppText variant="heading" numberOfLines={1}>
-            {category.name}
+      {questions ? (
+        <Card style={styles.note}>
+          <AppText variant="caption" tone="muted" testID="config-questions-note">
+            {t('config.questionsNote')}
           </AppText>
-          {category.names ? (
-            <AppText variant="caption" tone="muted" numberOfLines={2} testID="config-topic-names">
-              {category.names}
-            </AppText>
-          ) : null}
-        </View>
-        <Ionicons name="chevron-forward" size={22} color={p.textMuted} />
-      </Pressable>
-
-      {!isCustom ? (
+        </Card>
+      ) : (
         <>
-          <SectionTitle hint={t(`difficulty.${config.difficulty}.hint`)}>{t('config.difficulty')}</SectionTitle>
-          <Segmented
-            label={t('config.difficulty')}
-            value={config.difficulty}
-            onChange={(v) => set({ difficulty: v })}
-            options={(['easy', 'medium', 'hard'] as const).map((d) => ({ value: d, label: t(`difficulty.${d}`) }))}
-          />
+          <SectionTitle>{t('config.category')}</SectionTitle>
+          <Pressable
+            onPress={() => router.push('/setup/category')}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('config.category')}: ${category.name}`}
+            testID="config-category"
+            style={({ pressed }) => [
+              styles.categoryRow,
+              {
+                backgroundColor: pressed ? p.surfaceHigh : p.surface,
+                borderColor: category.exists ? p.border : p.danger,
+              },
+            ]}
+          >
+            <AppText style={styles.categoryEmoji}>{category.emoji}</AppText>
+            <View style={styles.flex}>
+              <AppText variant="heading" numberOfLines={1}>
+                {category.name}
+              </AppText>
+              {category.names ? (
+                <AppText variant="caption" tone="muted" numberOfLines={2} testID="config-topic-names">
+                  {category.names}
+                </AppText>
+              ) : null}
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={p.textMuted} />
+          </Pressable>
+
+          {!isCustom ? (
+            <>
+              <SectionTitle hint={t(`difficulty.${config.difficulty}.hint`)}>{t('config.difficulty')}</SectionTitle>
+              <Segmented
+                label={t('config.difficulty')}
+                value={config.difficulty}
+                onChange={(v) => set({ difficulty: v })}
+                options={(['easy', 'medium', 'hard'] as const).map((d) => ({ value: d, label: t(`difficulty.${d}`) }))}
+              />
+            </>
+          ) : null}
         </>
-      ) : null}
+      )}
 
       {full ? (
         <>
@@ -232,6 +248,80 @@ export default function ConfigScreen() {
               accessibilityLabel: s === 0 ? t('common.unlimited') : discussionLabel(s),
             }))}
           />
+        </>
+      ) : null}
+
+      {/* The switch itself is labelled "Voting", so it needs no section heading of its own. */}
+      <Card style={[styles.listCard, styles.votingCard]}>
+        <ToggleRow
+          icon="🗳️"
+          label={t('config.voting')}
+          hint={voting ? t('config.votingOn') : t('config.votingOff')}
+          value={voting}
+          onChange={(v) => set({ voting: v })}
+          testID="config-voting"
+        />
+      </Card>
+      {voting ? (
+        <>
+          <Pressable
+            onPress={() => setVotingOptions((o) => !o)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: votingOptions }}
+            style={styles.advancedToggle}
+            testID="config-voting-options"
+          >
+            <AppText variant="label" tone="muted">
+              {t('config.votingOptions')}
+            </AppText>
+            <Ionicons name={votingOptions ? 'chevron-up' : 'chevron-down'} size={18} color={p.textMuted} />
+          </Pressable>
+          {votingOptions ? (
+            <View style={styles.advanced}>
+              <AppText variant="caption" tone="muted" style={styles.subLabelFirst}>
+                {t('config.tieRule')}
+              </AppText>
+              <Segmented
+                label={t('config.tieRule')}
+                value={config.tieRule}
+                onChange={(v) => set({ tieRule: v })}
+                options={[
+                  { value: 'revote', label: t('config.tie.revote') },
+                  { value: 'random', label: t('config.tie.random') },
+                ]}
+              />
+              <Card style={[styles.listCard, styles.gapTop]}>
+                <ToggleRow
+                  label={t('config.allowAbstain')}
+                  hint={t('config.allowAbstainHint')}
+                  value={config.allowAbstain}
+                  onChange={(v) => set({ allowAbstain: v })}
+                  testID="config-abstain"
+                />
+                <ToggleRow
+                  label={t('config.finalGuess')}
+                  value={config.finalGuess}
+                  onChange={(v) => set({ finalGuess: v })}
+                />
+              </Card>
+              {config.finalGuess ? (
+                <>
+                  <AppText variant="caption" tone="muted" style={styles.subLabel}>
+                    {t('config.guessStyle')}
+                  </AppText>
+                  <Segmented
+                    label={t('config.guessStyle')}
+                    value={config.guessStyle}
+                    onChange={(v) => set({ guessStyle: v })}
+                    options={[
+                      { value: 'choice', label: t('config.guess.choice') },
+                      { value: 'type', label: t('config.guess.type') },
+                    ]}
+                  />
+                </>
+              ) : null}
+            </View>
+          ) : null}
         </>
       ) : null}
 
@@ -269,30 +359,7 @@ export default function ConfigScreen() {
 
       {advanced ? (
         <View style={styles.advanced}>
-          {full ? (
-            <>
-              <AppText variant="caption" tone="muted" style={styles.subLabel}>
-                {t('config.tieRule')}
-              </AppText>
-              <Segmented
-                label={t('config.tieRule')}
-                value={config.tieRule}
-                onChange={(v) => set({ tieRule: v })}
-                options={[
-                  { value: 'revote', label: t('config.tie.revote') },
-                  { value: 'random', label: t('config.tie.random') },
-                ]}
-              />
-            </>
-          ) : null}
-          <Card style={[styles.listCard, styles.gapTop]}>
-            {full ? (
-              <ToggleRow
-                label={t('config.finalGuess')}
-                value={config.finalGuess}
-                onChange={(v) => set({ finalGuess: v })}
-              />
-            ) : null}
+          <Card style={styles.listCard}>
             {config.mode === 'classic' || config.mode === 'chaos' ? (
               <ToggleRow
                 label={t('config.imposterHint')}
@@ -315,22 +382,6 @@ export default function ConfigScreen() {
               />
             ) : null}
           </Card>
-          {full && config.finalGuess ? (
-            <>
-              <AppText variant="caption" tone="muted" style={styles.subLabel}>
-                {t('config.guessStyle')}
-              </AppText>
-              <Segmented
-                label={t('config.guessStyle')}
-                value={config.guessStyle}
-                onChange={(v) => set({ guessStyle: v })}
-                options={[
-                  { value: 'choice', label: t('config.guess.choice') },
-                  { value: 'type', label: t('config.guess.type') },
-                ]}
-              />
-            </>
-          ) : null}
           {config.mode === 'chaos' ? (
             <>
               <AppText variant="caption" tone="muted" style={styles.subLabel}>
@@ -348,7 +399,7 @@ export default function ConfigScreen() {
             </>
           ) : null}
 
-          {full ? (
+          {full && voting ? (
             <>
               <SectionTitle>{t('config.scoring')}</SectionTitle>
               <Card style={styles.listCard}>
@@ -394,6 +445,7 @@ const styles = StyleSheet.create({
   styleNote: { marginTop: SPACE.sm },
   summary: { flexDirection: 'row', gap: SPACE.sm, flexWrap: 'wrap' },
   modes: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.sm },
+  note: { marginTop: SPACE.xl, paddingVertical: SPACE.md },
   mode: { flexBasis: '47%', flexGrow: 1, borderRadius: RADIUS.lg, borderWidth: 1.5, padding: SPACE.md, gap: 4 },
   modeHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modeEmoji: { fontSize: 26, lineHeight: 32 },
@@ -408,6 +460,7 @@ const styles = StyleSheet.create({
   },
   categoryEmoji: { fontSize: 28, lineHeight: 34 },
   subLabel: { marginTop: SPACE.md, marginBottom: SPACE.xs },
+  subLabelFirst: { marginBottom: SPACE.xs },
   listCard: { paddingVertical: SPACE.xs, paddingHorizontal: SPACE.xs },
   advancedToggle: {
     flexDirection: 'row',
@@ -418,6 +471,7 @@ const styles = StyleSheet.create({
   },
   advanced: { gap: 2 },
   gapTop: { marginTop: SPACE.md },
+  votingCard: { marginTop: SPACE.xl },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'center',

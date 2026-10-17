@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { createRng, pick, type Rng, type Seed, shuffle } from './rng';
 import { type SetupIssue, validateSetup } from './validation';
+import { pickQuestion } from './questions';
 import { type PickWordError, pickWord, resolveCategoryPool } from './words';
 
 export type RoundSetupError = SetupIssue | PickWordError;
@@ -35,15 +36,20 @@ export function createRoundSetup(
 
   const rng = createRng(seed);
   const mode = MODES[config.mode];
-  const pool = resolveCategoryPool(config.categoryId, source, config);
+  const questions = mode.oddContent === 'question';
+  const pool = questions ? null : resolveCategoryPool(config.categoryId, source, config);
   const altPossible = pool !== null && (pool.hasRelated || pool.words.length >= 2);
 
   const modifiers = mode.usesModifiers ? rollModifiers(rng, players.length, config, altPossible) : [];
 
-  const picked = pickWord(config, source, rng, {
-    needsAltWord: mode.needsAltWord || modifiers.includes('twoWords'),
-    recentKeys,
-  });
+  const picked = questions
+    ? pickQuestion(rng, recentKeys)
+    : pickWord(config, source, rng, {
+        needsAltWord:
+          mode.oddContent === 'related' || mode.oddContent === 'otherTopic' || modifiers.includes('twoWords'),
+        altFrom: mode.oddContent === 'otherTopic' ? 'otherTopic' : 'related',
+        recentKeys,
+      });
   if (!picked.ok) return { ok: false, errors: [picked.error] };
 
   const roles = assignRoles(rng, players, config, modifiers);

@@ -101,6 +101,17 @@ export function decodeSave(payload: string, key: string): GameState | null {
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string');
 
+/** Ballots as lists of picks. 1.0 saves stored one target per voter ('' = abstained). */
+function ballots(raw: unknown): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  if (!isRecord(raw)) return out;
+  for (const [voter, picks] of Object.entries(raw)) {
+    if (typeof picks === 'string') out[voter] = picks === '' ? [] : [picks];
+    else if (isStringArray(picks)) out[voter] = picks;
+  }
+  return out;
+}
+
 /** Structural validation of a restored game; anything inconsistent is rejected. */
 export function validateGameState(raw: unknown): GameState | null {
   if (!isRecord(raw)) return null;
@@ -142,6 +153,32 @@ export function validateGameState(raw: unknown): GameState | null {
     // Saves from before the direction feature default to clockwise.
     if (setup.direction !== 'clockwise' && setup.direction !== 'anticlockwise') setup.direction = 'clockwise';
     if (phase === 'VOTE_RESULT' && !isRecord(round.lastVote)) return null;
+    // Saves from 1.0 (one pick per ballot, no abstaining) are brought up to date.
+    if (typeof round.skippedVotes !== 'number' || !(round.skippedVotes >= 0)) round.skippedVotes = 0;
+    if (isRecord(round.voting)) {
+      const v = round.voting;
+      if (typeof v.allowAbstain !== 'boolean') v.allowAbstain = false;
+      if (typeof v.picks !== 'number' || !(v.picks >= 1)) v.picks = 1;
+      if (!isStringArray(v.alreadyOut)) v.alreadyOut = [];
+      v.votes = ballots(v.votes);
+    }
+    if (isRecord(round.lastVote)) {
+      const o = round.lastVote;
+      if (typeof o.nobodyOut !== 'boolean') o.nobodyOut = false;
+      if (isRecord(o.tally) && typeof o.tally.abstained !== 'number') o.tally.abstained = 0;
+      if (!Array.isArray(o.eliminated)) o.eliminated = typeof o.eliminated === 'string' ? [o.eliminated] : [];
+      if (!isStringArray(o.alreadyOut)) o.alreadyOut = [];
+      if (!isStringArray(o.tied)) o.tied = o.needsRevote && isRecord(o.tally) ? (o.tally.leaders as unknown) : [];
+      if (typeof o.revotePicks !== 'number') o.revotePicks = o.needsRevote ? 1 : 0;
+      if (typeof o.unfilled !== 'number') o.unfilled = 0;
+      o.votes = ballots(o.votes);
+    }
+    round.eliminations.forEach((e, i) => {
+      if (!isRecord(e)) return;
+      e.votes = ballots(e.votes);
+      if (typeof e.vote !== 'number') e.vote = i;
+      if (typeof e.outLoud !== 'boolean') e.outLoud = false;
+    });
     if ((phase === 'ROUND_RESULT' || phase === 'SCOREBOARD') && !isRecord(round.result)) return null;
   } else if (phase !== 'IDLE' && phase !== 'GAME_COMPLETE') {
     return null;

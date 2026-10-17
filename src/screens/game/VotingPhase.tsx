@@ -14,10 +14,12 @@ import { dispatch, revealVotes } from '../../state/gameStore';
 import { RADIUS, SPACE, TOUCH, usePalette } from '../../theme';
 import { TIMING } from '../../utils/timing';
 import { PassPhoneGate } from './PassPhoneGate';
+import { usePrivateScreen } from './privateScreen';
 
 /**
- * Secret ballot. Each voter confirms identity, picks a suspect, may change the
- * pick, then locks it in. No tallies are shown until every vote is in.
+ * Secret ballot. Each voter confirms identity, picks as many suspects as this vote
+ * puts out (or abstains, if allowed), may change the picks, then locks them in.
+ * No tallies are shown until every vote is in.
  */
 export function VotingPhase({ state }: { state: GameState }) {
   const t = useT();
@@ -101,8 +103,16 @@ function VoterTurn({
   const voting = state.round!.voting!;
   const done = voting.voterIndex;
   const voterId = voter.id;
+  const picks = voting.picks;
   const [ballotOpen, setBallotOpen] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [abstaining, setAbstaining] = useState(false);
+  // Hardware back / "leave game?" close an open ballot (and clear the picks) first.
+  usePrivateScreen(ballotOpen, () => {
+    setBallotOpen(false);
+    setPicked([]);
+    setAbstaining(false);
+  });
   // Brief "Vote locked 🔒" confirmation for the previous voter before the next gate.
   const [justLocked, setJustLocked] = useState(showLocked && TIMING.voteLockedMs > 0);
 
@@ -111,7 +121,8 @@ function VoterTurn({
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') {
         setBallotOpen(false);
-        setSelected(null);
+        setPicked([]);
+        setAbstaining(false);
       }
     });
     return () => sub.remove();
@@ -149,7 +160,13 @@ function VoterTurn({
         <PassPhoneGate
           heading={t('vote.passTo')}
           name={voter.name}
-          note={t('vote.secret')}
+          note={
+            done === 0 && !voting.isRevote
+              ? picks > 1
+                ? t('vote.introMany', { count: picks })
+                : t('vote.intro')
+              : t('vote.secret')
+          }
           emoji="🗳️"
           buttonLabel={t('vote.ready', { name: voter.name })}
           resetKey={`${voterId}:${done}:${voting.isRevote}`}
@@ -161,41 +178,66 @@ function VoterTurn({
   }
 
   const targets = eligibleTargets(voting, voter.id);
+  const ready = abstaining || picked.length === picks;
+  const toggle = (id: string) => {
+    haptic('select');
+    setAbstaining(false);
+    // One pick works like a radio button; several are ticked and unticked, up to `picks`.
+    if (picks === 1) setPicked([id]);
+    else setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length < picks ? [...cur, id] : cur));
+  };
   const lock = () => {
-    if (!selected) return;
+    if (!ready) return;
     playSound('vote');
     haptic('confirm');
     // The vote advances the turn; this keyed component unmounts and the next one starts fresh.
-    dispatch({ type: 'CAST_VOTE', voterId: voter.id, targetId: selected });
+    dispatch({ type: 'CAST_VOTE', voterId: voter.id, targetIds: abstaining ? [] : picked });
   };
-  const selectedName = state.players.find((pl) => pl.id === selected)?.name;
+  const singleName = picks === 1 ? state.players.find((pl) => pl.id === picked[0])?.name : undefined;
+  const lockLabel = abstaining
+    ? t('vote.lockAbstain')
+    : picks === 1
+      ? singleName
+        ? t('vote.lockIn', { name: singleName })
+        : t('vote.pick')
+      : ready
+        ? t('vote.lockMany', { count: picks })
+        : t('vote.pickMore_other', { count: picks - picked.length });
   const twoCols = targets.length > 6;
+  const mark = (on: boolean) =>
+    picks === 1 ? (on ? 'radio-button-on' : 'radio-button-off') : on ? 'checkbox' : 'square-outline';
 
   return (
     <View style={styles.root}>
       {progress}
       <FadeIn style={styles.ballot}>
-        <AppText variant="title" align="center" accessibilityRole="header">
-          {t('vote.chooseFor', { name: voter.name })}
-        </AppText>
+        <View style={styles.ballotHead}>
+          <AppText variant="title" align="center" accessibilityRole="header">
+            {picks > 1
+              ? t('vote.chooseMany', { name: voter.name, count: picks })
+              : t('vote.chooseFor', { name: voter.name })}
+          </AppText>
+          {picks > 1 ? (
+            <AppText variant="bodyStrong" tone="muted" align="center" testID="vote-picked">
+              {t('vote.pickedCount', { done: abstaining ? 0 : picked.length, total: picks })}
+            </AppText>
+          ) : null}
+        </View>
         {/* The list scrolls on its own so the lock-in button stays on screen, even with 20 players. */}
         <ScrollView
           style={styles.listScroll}
           contentContainerStyle={[styles.grid, twoCols && styles.gridTwo]}
-          accessibilityRole="radiogroup"
+          accessibilityRole={picks === 1 ? 'radiogroup' : undefined}
         >
           {targets.map((id) => {
             const pl = state.players.find((x) => x.id === id)!;
-            const isSel = selected === id;
+            const isSel = picked.includes(id);
             return (
               <Pressable
                 key={id}
-                onPress={() => {
-                  haptic('select');
-                  setSelected(id);
-                }}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: isSel }}
+                onPress={() => toggle(id)}
+                accessibilityRole={picks === 1 ? 'radio' : 'checkbox'}
+                accessibilityState={picks === 1 ? { selected: isSel } : { checked: isSel }}
                 accessibilityLabel={pl.name}
                 testID={`vote-target-${pl.name}`}
                 style={[
@@ -207,11 +249,7 @@ function VoterTurn({
                   },
                 ]}
               >
-                <Ionicons
-                  name={isSel ? 'radio-button-on' : 'radio-button-off'}
-                  size={22}
-                  color={isSel ? p.danger : p.textFaint}
-                />
+                <Ionicons name={mark(isSel)} size={22} color={isSel ? p.danger : p.textFaint} />
                 <AppText variant="heading" numberOfLines={2} style={styles.targetName}>
                   {pl.name}
                 </AppText>
@@ -223,13 +261,47 @@ function VoterTurn({
               </Pressable>
             );
           })}
+          {voting.allowAbstain ? (
+            <Pressable
+              onPress={() => {
+                haptic('select');
+                setPicked([]);
+                setAbstaining(true);
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: abstaining }}
+              accessibilityLabel={`${t('vote.abstain')}. ${t('vote.abstainHint')}`}
+              testID="vote-abstain"
+              style={[
+                styles.target,
+                styles.abstain,
+                twoCols && styles.abstainWide,
+                {
+                  backgroundColor: abstaining ? p.surfaceHigh : 'transparent',
+                  borderColor: abstaining ? p.textMuted : p.border,
+                },
+              ]}
+            >
+              <Ionicons
+                name={abstaining ? 'radio-button-on' : 'radio-button-off'}
+                size={22}
+                color={abstaining ? p.text : p.textFaint}
+              />
+              <View style={styles.targetName}>
+                <AppText variant="heading">{t('vote.abstain')}</AppText>
+                <AppText variant="caption" tone="muted">
+                  {t('vote.abstainHint')}
+                </AppText>
+              </View>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </FadeIn>
       <Button
-        label={selectedName ? t('vote.lockIn', { name: selectedName }) : t('vote.pick')}
+        label={lockLabel}
         icon="lock-closed"
         variant="danger"
-        disabled={!selected}
+        disabled={!ready}
         onPress={lock}
         cooldownMs={1000}
         testID="vote-lock"
@@ -246,6 +318,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: SPACE.md },
   bigEmoji: { fontSize: 72, lineHeight: 84 },
   ballot: { flex: 1, gap: SPACE.lg, minHeight: 0 },
+  ballotHead: { gap: SPACE.xs },
   listScroll: { flex: 1 },
   gridTwo: { flexDirection: 'row', flexWrap: 'wrap' },
   targetHalf: { flexBasis: '47%', flexGrow: 1, paddingHorizontal: SPACE.md, gap: SPACE.sm },
@@ -261,5 +334,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.sm,
   },
   targetName: { flex: 1 },
+  abstain: { borderStyle: 'dashed' },
+  abstainWide: { flexBasis: '100%' },
   selectedTag: { fontWeight: '800' },
 });

@@ -62,11 +62,14 @@ export function Segmented<T extends string | number>({
   value,
   onChange,
   label,
+  testID,
 }: {
   options: readonly SegmentOption<T>[];
   value: T;
   onChange: (v: T) => void;
   label: string;
+  /** Each option gets `${testID}-${value}`. */
+  testID?: string;
 }) {
   const p = usePalette();
   return (
@@ -89,6 +92,7 @@ export function Segmented<T extends string | number>({
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             accessibilityLabel={o.accessibilityLabel ?? o.label}
+            testID={testID ? `${testID}-${o.value}` : undefined}
             style={[styles.segment, selected && { backgroundColor: p.primary }]}
           >
             <AppText
@@ -219,6 +223,7 @@ export function ListRow({
   onPress,
   right,
   danger,
+  testID,
 }: {
   label: string;
   hint?: string;
@@ -226,6 +231,7 @@ export function ListRow({
   onPress?: () => void;
   right?: React.ReactNode;
   danger?: boolean;
+  testID?: string;
 }) {
   const p = usePalette();
   const press = useGuardedCallback(onPress);
@@ -234,6 +240,7 @@ export function ListRow({
       onPress={onPress ? press : undefined}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={hint ? `${label}. ${hint}` : label}
+      testID={testID}
       style={({ pressed }) => [styles.row, pressed && onPress ? { backgroundColor: p.surfaceHigh } : null]}
     >
       {icon ? <Ionicons name={icon} size={22} color={danger ? p.danger : p.textMuted} style={styles.rowIcon} /> : null}
